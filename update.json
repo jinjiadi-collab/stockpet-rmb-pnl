@@ -1,9 +1,9 @@
 {
-  "version": "0.1.3",
-  "assetName": "StockPet-RMB-PnL-Windows-x64-v0.1.3.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.3/StockPet-RMB-PnL-Windows-x64-v0.1.3.zip",
-  "digest": "sha256:32a920004b540f31c22d762f9ab179e8c473d74e8697fb9fa9372a7661706972",
-  "size": 120861296,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.3",
-  "notes": "兼容过渡更新：更新器现可识别未来的全英文解压目录和压缩包命名。"
+  "version": "0.1.4",
+  "assetName": "StockPet-PnL-Windows-x64-v0.1.4.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.4/StockPet-PnL-Windows-x64-v0.1.4.zip",
+  "digest": "sha256:9ff8d9da817bc28042a30c0e69f01036e4d5ffe03ad88e31d79eb49f5dc66e5f",
+  "size": 120859700,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.4",
+  "notes": "全英文发布版：压缩包、解压目录和启动程序均为 StockPet-PnL。"
 }
