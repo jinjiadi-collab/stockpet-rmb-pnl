@@ -1,4 +1,4 @@
-Stock Pet 人民币盈亏版（v0.1.0）
+StockPet P&L（v0.1.0）
 
 本定制版基于 YellowPancake/StockPet 修改：
 https://github.com/YellowPancake/StockPet

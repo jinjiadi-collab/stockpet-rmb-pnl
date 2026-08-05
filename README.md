@@ -1,4 +1,4 @@
-# Stock Pet 人民币盈亏版
+# StockPet P&L
 
 Windows 桌面盯盘工具的个人定制版，首个自定义发布版本为 `v0.1.0`。
 
@@ -21,7 +21,7 @@ Windows 桌面盯盘工具的个人定制版，首个自定义发布版本为 `v
 
 ## 发布包
 
-每个 Release 提供 Windows x64 完整文件夹压缩包。解压后运行 `StockPet人民币盈亏.exe`，请不要将 EXE 单独移出文件夹。
+每个 Release 提供 Windows x64 完整文件夹压缩包。解压后运行 `StockPet-PnL.exe`，请不要将 EXE 单独移出文件夹。
 
 ## 第三方组件
 

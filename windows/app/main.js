@@ -170,7 +170,7 @@ async function giteeUpdateCandidate() {
 
 async function checkForSoftwareUpdate() {
   if (!UPDATES_ENABLED) {
-    return { status: "disabled", message: "人民币盈亏版已关闭上游更新" };
+    return { status: "disabled", message: "StockPet P&L 已关闭上游更新" };
   }
   const results = await Promise.allSettled([manifestUpdateCandidate(), githubUpdateCandidate()]);
   const candidates = results.filter((item) => item.status === "fulfilled").map((item) => item.value);
@@ -389,7 +389,7 @@ function availableDownloadPath(update) {
 }
 
 async function downloadSoftwareUpdate(route) {
-  if (!UPDATES_ENABLED) throw new Error("人民币盈亏版已关闭上游更新");
+  if (!UPDATES_ENABLED) throw new Error("StockPet P&L 已关闭上游更新");
   if (!availableUpdate) await checkForSoftwareUpdate();
   if (!availableUpdate) return { status: "upToDate" };
   const update = availableUpdate;
