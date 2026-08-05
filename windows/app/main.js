@@ -206,6 +206,24 @@ function powerShellLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+function cmdLiteral(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+async function launchUpdater(scriptPath) {
+  const command = `start "" /b powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${cmdLiteral(scriptPath)}`;
+  const launcher = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  await new Promise((resolve, reject) => {
+    launcher.once("spawn", resolve);
+    launcher.once("error", reject);
+  });
+  launcher.unref();
+}
+
 function updateScript({ processId, archivePath, stagingPath, installDirectory, executableName, scriptPath, statusPath, targetVersion }) {
   return `﻿$ErrorActionPreference = 'Stop'
 $processIdToWait = ${Number(processId)}
@@ -317,13 +335,9 @@ async function installAvailableUpdate() {
       statusPath: updateResultPath(),
       targetVersion: availableUpdate.version,
     });
-    await fs.promises.writeFile(scriptPath, script, "utf8");
-    const updater = spawn("powershell.exe", [
-      "-NoProfile",
-      "-ExecutionPolicy", "Bypass",
-      "-File", scriptPath,
-    ], { detached: true, stdio: "ignore", windowsHide: true });
-    updater.unref();
+    const scriptWithBom = script.startsWith("\uFEFF") ? script : `\uFEFF${script}`;
+    await fs.promises.writeFile(scriptPath, Buffer.from(scriptWithBom, "utf8"));
+    await launchUpdater(scriptPath);
   } catch (error) {
     await fs.promises.rm(temporaryRoot, { recursive: true, force: true }).catch(() => {});
     throw error;

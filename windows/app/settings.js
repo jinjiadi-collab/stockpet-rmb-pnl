@@ -360,7 +360,7 @@ $("#check-custom-update").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   const message = $("#update-message");
   button.disabled = true;
-  message.textContent = availableUpdate ? `正在下载 v${availableUpdate.version}…` : "正在检查人民币盈亏版更新…";
+  message.textContent = availableUpdate ? `正在下载 v${availableUpdate.version}…` : "正在检查 StockPet P&L 定制版更新…";
   try {
     const result = availableUpdate
       ? { status: "available", update: availableUpdate }
