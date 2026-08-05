@@ -54,9 +54,8 @@ let availableUpdate = null;
 const UPDATES_ENABLED = true;
 
 // 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
-const UPDATE_ASSET_PATTERN = /^StockPet-RMB-PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
+const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
-const UPDATE_PACKAGE_FOLDER_NAME = "StockPet人民币盈亏版";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
@@ -194,10 +193,11 @@ try {
   }
   New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
   Expand-Archive -LiteralPath $archivePath -DestinationPath $stagingPath -Force
-  $payloadPath = Join-Path $stagingPath ${powerShellLiteral(UPDATE_PACKAGE_FOLDER_NAME)}
-  if (-not (Test-Path -LiteralPath $payloadPath)) {
+  $payloadDirectories = @(Get-ChildItem -LiteralPath $stagingPath -Directory)
+  if ($payloadDirectories.Count -ne 1) {
     throw '更新包结构不正确，未替换当前版本。'
   }
+  $payloadPath = $payloadDirectories[0].FullName
   Get-ChildItem -LiteralPath $payloadPath -Force | Copy-Item -Destination $installDirectory -Recurse -Force
   Start-Process -FilePath (Join-Path $installDirectory $executableName)
 } catch {
