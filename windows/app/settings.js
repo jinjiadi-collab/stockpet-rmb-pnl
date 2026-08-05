@@ -348,6 +348,28 @@ $("#reset-appearance").addEventListener("click", () => updateState({
 $("#preview-bull").addEventListener("click", () => window.stockPet.previewAlert("rising"));
 $("#preview-bear").addEventListener("click", () => window.stockPet.previewAlert("falling"));
 $("#github-author").addEventListener("click", () => window.stockPet.openAuthor());
+$("#check-custom-update").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const message = $("#update-message");
+  button.disabled = true;
+  message.textContent = "正在检查人民币盈亏版更新…";
+  try {
+    const result = await window.stockPet.checkForUpdate();
+    if (result.status === "upToDate") {
+      message.textContent = "当前已是最新版本。";
+    } else if (result.status === "available") {
+      const openRelease = window.confirm(`发现 v${result.update.version}，是否打开下载页面？`);
+      message.textContent = `发现 v${result.update.version}，已准备好打开下载页面。`;
+      if (openRelease) await window.stockPet.openUpdateRelease();
+    } else {
+      message.textContent = result.message || "更新检查暂不可用。";
+    }
+  } catch (error) {
+    message.textContent = error?.message || "检查更新失败，请稍后重试。";
+  } finally {
+    button.disabled = false;
+  }
+});
 
 $("#price-alert-list").addEventListener("change", async (event) => {
   const item = event.target.closest("[data-price-alert-id]");

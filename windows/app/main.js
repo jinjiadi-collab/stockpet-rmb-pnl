@@ -49,11 +49,11 @@ let sourceError = null;
 let quitting = false;
 let overlayDragStart = null;
 let availableUpdate = null;
-const UPDATES_ENABLED = false;
+const UPDATES_ENABLED = true;
 
-const UPDATE_ASSET_NAME = "StockPet-Windows-x64-Chinese.zip";
-const GITHUB_RELEASES_API = "https://api.github.com/repos/YellowPancake/StockPet/releases/latest";
-const GITEE_RELEASES_API = "https://gitee.com/api/v5/repos/YBigPie/StockPet/releases/latest";
+// 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
+const UPDATE_ASSET_PATTERN = /^StockPet-RMB-PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
+const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
@@ -105,19 +105,14 @@ async function githubUpdateCandidate() {
     "X-GitHub-Api-Version": "2022-11-28",
   });
   const version = String(release.tag_name || "").replace(/^[vV]/, "").split("-")[0];
-  const asset = (release.assets || []).find((item) => item.name === UPDATE_ASSET_NAME);
-  if (!asset?.browser_download_url || !String(asset.digest || "").startsWith("sha256:")) {
+  const asset = (release.assets || []).find((item) => UPDATE_ASSET_PATTERN.test(item.name));
+  if (!asset?.browser_download_url) {
     throw new Error("新版本缺少适用于当前系统的安装包");
   }
   return {
     version,
     notes: release.body || "",
-    download: {
-      route: "routeOne",
-      assetName: asset.name,
-      parts: [{ url: asset.browser_download_url, size: Number(asset.size) || 0 }],
-      digest: String(asset.digest).toLowerCase(),
-    },
+    releaseUrl: release.html_url || "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases",
   };
 }
 
@@ -147,7 +142,7 @@ async function checkForSoftwareUpdate() {
   if (!UPDATES_ENABLED) {
     return { status: "disabled", message: "人民币盈亏版已关闭上游更新" };
   }
-  const results = await Promise.allSettled([githubUpdateCandidate(), giteeUpdateCandidate()]);
+  const results = await Promise.allSettled([githubUpdateCandidate()]);
   const candidates = results.filter((item) => item.status === "fulfilled").map((item) => item.value);
   if (!candidates.length) throw new Error("检查更新失败，请稍后重试");
   const newer = candidates.filter((item) => isVersionNewer(item.version, app.getVersion()));
@@ -158,13 +153,19 @@ async function checkForSoftwareUpdate() {
   const latest = newer.reduce((selected, item) => (
     isVersionNewer(item.version, selected.version) ? item : selected
   ));
-  const matching = newer.filter((item) => item.version === latest.version);
   availableUpdate = {
     version: latest.version,
-    notes: matching.find((item) => item.notes)?.notes || "",
-    downloads: Object.fromEntries(matching.map((item) => [item.download.route, item.download])),
+    notes: latest.notes || "",
+    releaseUrl: latest.releaseUrl,
   };
   return { status: "available", update: availableUpdate };
+}
+
+async function openUpdateRelease() {
+  if (!availableUpdate) await checkForSoftwareUpdate();
+  if (!availableUpdate) return { status: "upToDate" };
+  await shell.openExternal(availableUpdate.releaseUrl);
+  return { status: "opened", version: availableUpdate.version };
 }
 
 function availableDownloadPath(update) {
@@ -667,7 +668,7 @@ function registerIPC() {
     return { ok: true };
   });
   ipcMain.handle("update:check", () => checkForSoftwareUpdate());
-  ipcMain.handle("update:download", (_event, route) => downloadSoftwareUpdate(route));
+  ipcMain.handle("update:open-release", () => openUpdateRelease());
   ipcMain.handle("overlay:show", () => {
     overlayWindow?.showInactive();
     return { ok: true };

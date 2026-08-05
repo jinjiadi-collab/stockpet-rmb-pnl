@@ -229,8 +229,10 @@
         </div>
         <div class="card settings-card update-card">
           <div class="setting-row">
-            <span><strong>软件更新</strong><small>人民币盈亏版已关闭上游更新，避免覆盖自定义功能。</small></span>
+            <span><strong>软件更新</strong><small>仅检查人民币盈亏版自己的更新，不会连接或安装原项目版本。</small></span>
+            <button id="check-custom-update" class="secondary" type="button">检查更新</button>
           </div>
+          <p id="update-message" class="muted" aria-live="polite"></p>
         </div>
         <div class="card settings-card author-card">
           <div class="setting-row">

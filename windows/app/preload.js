@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld("stockPet", {
   openSettings: () => ipcRenderer.invoke("settings:open"),
   openAuthor: () => ipcRenderer.invoke("external:open-author"),
   checkForUpdate: () => ipcRenderer.invoke("update:check"),
-  downloadUpdate: (route) => ipcRenderer.invoke("update:download", route),
+  openUpdateRelease: () => ipcRenderer.invoke("update:open-release"),
   showOverlay: () => ipcRenderer.invoke("overlay:show"),
   beginWindowDrag: (x, y) => ipcRenderer.send("overlay:drag-start", { x, y }),
   dragWindow: (x, y) => ipcRenderer.send("overlay:drag-move", { x, y }),
