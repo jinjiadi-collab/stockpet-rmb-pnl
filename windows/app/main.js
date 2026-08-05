@@ -56,6 +56,7 @@ const UPDATES_ENABLED = true;
 // 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
 const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
+const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/stockpet-rmb-pnl/main/update.json";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
@@ -122,6 +123,26 @@ async function githubUpdateCandidate() {
   };
 }
 
+async function manifestUpdateCandidate() {
+  const manifest = await fetchUpdateJSON(`${UPDATE_MANIFEST_URL}?_=${Date.now()}`);
+  const version = String(manifest.version || "").replace(/^[vV]/, "").split("-")[0];
+  const assetName = String(manifest.assetName || "");
+  const assetUrl = String(manifest.assetUrl || "");
+  const digest = String(manifest.digest || "").toLowerCase();
+  if (!version || !UPDATE_ASSET_PATTERN.test(assetName) || !assetUrl || !digest.startsWith("sha256:")) {
+    throw new Error("更新清单无效，请稍后重试。");
+  }
+  return {
+    version,
+    notes: String(manifest.notes || ""),
+    releaseUrl: String(manifest.releaseUrl || "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases"),
+    assetName,
+    assetUrl,
+    digest,
+    size: Number(manifest.size) || 0,
+  };
+}
+
 async function giteeUpdateCandidate() {
   const release = await fetchUpdateJSON(GITEE_RELEASES_API);
   const attachments = await fetchUpdateJSON(
@@ -148,7 +169,7 @@ async function checkForSoftwareUpdate() {
   if (!UPDATES_ENABLED) {
     return { status: "disabled", message: "人民币盈亏版已关闭上游更新" };
   }
-  const results = await Promise.allSettled([githubUpdateCandidate()]);
+  const results = await Promise.allSettled([manifestUpdateCandidate(), githubUpdateCandidate()]);
   const candidates = results.filter((item) => item.status === "fulfilled").map((item) => item.value);
   if (!candidates.length) throw new Error("检查更新失败，请稍后重试");
   const newer = candidates.filter((item) => isVersionNewer(item.version, app.getVersion()));
