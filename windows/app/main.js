@@ -8,10 +8,12 @@ const {
   Menu,
   nativeImage,
   net,
+  Notification,
   screen,
   shell,
   Tray,
 } = require("electron");
+const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
@@ -54,6 +56,7 @@ const UPDATES_ENABLED = true;
 // 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
 const UPDATE_ASSET_PATTERN = /^StockPet-RMB-PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
+const UPDATE_PACKAGE_FOLDER_NAME = "StockPet人民币盈亏版";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
@@ -106,13 +109,17 @@ async function githubUpdateCandidate() {
   });
   const version = String(release.tag_name || "").replace(/^[vV]/, "").split("-")[0];
   const asset = (release.assets || []).find((item) => UPDATE_ASSET_PATTERN.test(item.name));
-  if (!asset?.browser_download_url) {
+  if (!asset?.browser_download_url || !String(asset.digest || "").startsWith("sha256:")) {
     throw new Error("新版本缺少适用于当前系统的安装包");
   }
   return {
     version,
     notes: release.body || "",
     releaseUrl: release.html_url || "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases",
+    assetName: asset.name,
+    assetUrl: asset.browser_download_url,
+    digest: String(asset.digest).toLowerCase(),
+    size: Number(asset.size) || 0,
   };
 }
 
@@ -166,6 +173,110 @@ async function openUpdateRelease() {
   if (!availableUpdate) return { status: "upToDate" };
   await shell.openExternal(availableUpdate.releaseUrl);
   return { status: "opened", version: availableUpdate.version };
+}
+
+function powerShellLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function updateScript({ processId, archivePath, stagingPath, installDirectory, executableName, scriptPath }) {
+  return `﻿$ErrorActionPreference = 'Stop'
+$processIdToWait = ${Number(processId)}
+$archivePath = ${powerShellLiteral(archivePath)}
+$stagingPath = ${powerShellLiteral(stagingPath)}
+$installDirectory = ${powerShellLiteral(installDirectory)}
+$executableName = ${powerShellLiteral(executableName)}
+$scriptPath = ${powerShellLiteral(scriptPath)}
+
+try {
+  while (Get-Process -Id $processIdToWait -ErrorAction SilentlyContinue) {
+    Start-Sleep -Milliseconds 300
+  }
+  New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
+  Expand-Archive -LiteralPath $archivePath -DestinationPath $stagingPath -Force
+  $payloadPath = Join-Path $stagingPath ${powerShellLiteral(UPDATE_PACKAGE_FOLDER_NAME)}
+  if (-not (Test-Path -LiteralPath $payloadPath)) {
+    throw '更新包结构不正确，未替换当前版本。'
+  }
+  Get-ChildItem -LiteralPath $payloadPath -Force | Copy-Item -Destination $installDirectory -Recurse -Force
+  Start-Process -FilePath (Join-Path $installDirectory $executableName)
+} catch {
+  Add-Type -AssemblyName PresentationFramework
+  [System.Windows.MessageBox]::Show("自动更新没有完成：$($_.Exception.Message)\`n请从本项目的 Releases 页面手动下载。", 'Stock Pet 更新') | Out-Null
+} finally {
+  Remove-Item -LiteralPath $stagingPath -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $archivePath -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+}
+`;
+}
+
+async function installAvailableUpdate() {
+  if (!availableUpdate) await checkForSoftwareUpdate();
+  if (!availableUpdate) return { status: "upToDate" };
+  if (process.platform !== "win32" || !app.isPackaged) {
+    throw new Error("自动更新仅适用于已解压运行的 Windows 正式版。");
+  }
+  const installDirectory = path.dirname(process.execPath);
+  try {
+    await fs.promises.access(installDirectory, fs.constants.W_OK);
+  } catch {
+    throw new Error("当前安装目录没有写入权限，请将软件解压到桌面或其他可写位置后再更新。");
+  }
+  const temporaryRoot = path.join(app.getPath("temp"), `stockpet-update-${Date.now()}`);
+  const archivePath = path.join(temporaryRoot, availableUpdate.assetName);
+  const stagingPath = path.join(temporaryRoot, "unpacked");
+  const scriptPath = path.join(temporaryRoot, "finish-update.ps1");
+  await fs.promises.mkdir(temporaryRoot, { recursive: true });
+  try {
+    const response = await net.fetch(availableUpdate.assetUrl, {
+      cache: "no-store",
+      headers: { Accept: "application/octet-stream", "User-Agent": `StockPet/${app.getVersion()}` },
+    });
+    if (!response.ok) throw new Error("更新包下载失败，请稍后重试。");
+    const payload = Buffer.from(await response.arrayBuffer());
+    const receivedHash = `sha256:${createHash("sha256").update(payload).digest("hex")}`;
+    if (receivedHash !== availableUpdate.digest) {
+      throw new Error("更新包校验失败，已停止安装。");
+    }
+    await fs.promises.writeFile(archivePath, payload);
+    const script = updateScript({
+      processId: process.pid,
+      archivePath,
+      stagingPath,
+      installDirectory,
+      executableName: path.basename(process.execPath),
+      scriptPath,
+    });
+    await fs.promises.writeFile(scriptPath, script, "utf8");
+    const updater = spawn("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy", "Bypass",
+      "-File", scriptPath,
+    ], { detached: true, stdio: "ignore", windowsHide: true });
+    updater.unref();
+  } catch (error) {
+    await fs.promises.rm(temporaryRoot, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+  setTimeout(() => app.quit(), 250);
+  return { status: "restarting", version: availableUpdate.version };
+}
+
+async function checkForStartupUpdate() {
+  try {
+    const result = await checkForSoftwareUpdate();
+    if (result.status !== "available") return;
+    send("update-available", result.update);
+    const notification = new Notification({
+      title: "Stock Pet 有新版本",
+      body: `发现 v${result.update.version}，点击可自动下载并更新。`,
+    });
+    notification.on("click", openSettings);
+    notification.show();
+  } catch {
+    // 启动检查不打扰使用；用户可在设置中手动检查。
+  }
 }
 
 function availableDownloadPath(update) {
@@ -230,6 +341,7 @@ function snapshot() {
   return {
     state,
     quotes,
+    update: availableUpdate,
     status: {
       lastRefresh,
       sourceError,
@@ -362,6 +474,7 @@ function rebuildTrayMenu() {
       click: toggleOverlay,
     },
     { label: "立即刷新", click: () => refreshAll() },
+    { label: "检查软件更新", click: () => checkForSoftwareUpdate().then(openSettings).catch(openSettings) },
     {
       label: "锁定并穿透鼠标",
       type: "checkbox",
@@ -669,6 +782,7 @@ function registerIPC() {
   });
   ipcMain.handle("update:check", () => checkForSoftwareUpdate());
   ipcMain.handle("update:open-release", () => openUpdateRelease());
+  ipcMain.handle("update:install", () => installAvailableUpdate());
   ipcMain.handle("overlay:show", () => {
     overlayWindow?.showInactive();
     return { ok: true };
@@ -715,6 +829,7 @@ if (!gotLock) {
     createTray();
     registerGlobalShortcut();
     refreshAll().finally(resetRefreshTimer);
+    setTimeout(checkForStartupUpdate, 5000);
   });
 
   app.on("before-quit", () => {
