@@ -62,6 +62,7 @@ const EDITION_NAME = "StockPet P&L 定制版";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
+const updateResultPath = () => path.join(app.getPath("userData"), "last-update-result.json");
 const assetPath = (name) => path.join(__dirname, "assets", name);
 
 function readJSON(filePath, fallback) {
@@ -205,7 +206,7 @@ function powerShellLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-function updateScript({ processId, archivePath, stagingPath, installDirectory, executableName, scriptPath }) {
+function updateScript({ processId, archivePath, stagingPath, installDirectory, executableName, scriptPath, statusPath, targetVersion }) {
   return `﻿$ErrorActionPreference = 'Stop'
 $processIdToWait = ${Number(processId)}
 $archivePath = ${powerShellLiteral(archivePath)}
@@ -213,6 +214,12 @@ $stagingPath = ${powerShellLiteral(stagingPath)}
 $installDirectory = ${powerShellLiteral(installDirectory)}
 $executableName = ${powerShellLiteral(executableName)}
 $scriptPath = ${powerShellLiteral(scriptPath)}
+$statusPath = ${powerShellLiteral(statusPath)}
+$targetVersion = ${powerShellLiteral(targetVersion)}
+
+function Write-UpdateStatus($status, $message) {
+  @{ status = $status; version = $targetVersion; message = $message } | ConvertTo-Json -Compress | Set-Content -LiteralPath $statusPath -Encoding UTF8
+}
 
 try {
   while (Get-Process -Id $processIdToWait -ErrorAction SilentlyContinue) {
@@ -225,9 +232,18 @@ try {
     throw '更新包结构不正确，未替换当前版本。'
   }
   $payloadPath = $payloadDirectories[0].FullName
-  Get-ChildItem -LiteralPath $payloadPath -Force | Copy-Item -Destination $installDirectory -Recurse -Force
-  Start-Process -FilePath (Join-Path $installDirectory $executableName)
+  $targetDirectory = $installDirectory
+  $targetExecutable = $executableName
+  if ($payloadDirectories[0].Name -eq 'StockPet-PnL') {
+    $targetDirectory = Join-Path (Split-Path $installDirectory -Parent) 'StockPet-PnL'
+    $targetExecutable = 'StockPet-PnL.exe'
+  }
+  New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
+  Get-ChildItem -LiteralPath $payloadPath -Force | Copy-Item -Destination $targetDirectory -Recurse -Force
+  Write-UpdateStatus 'success' "已更新到 v$targetVersion"
+  Start-Process -FilePath (Join-Path $targetDirectory $targetExecutable) -ArgumentList '--stockpet-updated'
 } catch {
+  Write-UpdateStatus 'failed' $_.Exception.Message
   Add-Type -AssemblyName PresentationFramework
   [System.Windows.MessageBox]::Show("自动更新没有完成：$($_.Exception.Message)\`n请从本项目的 Releases 页面手动下载。", 'Stock Pet 更新') | Out-Null
 } finally {
@@ -236,6 +252,40 @@ try {
   Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
 }
 `;
+}
+
+async function downloadUpdateArchive(update, archivePath) {
+  const response = await net.fetch(update.assetUrl, {
+    cache: "no-store",
+    headers: { Accept: "application/octet-stream", "User-Agent": `StockPet/${app.getVersion()}` },
+  });
+  if (!response.ok) throw new Error("更新包下载失败，请稍后重试。");
+  const total = Number(response.headers.get("content-length")) || Number(update.size) || 0;
+  const hash = createHash("sha256");
+  let received = 0;
+  let lastProgressAt = 0;
+  const file = await fs.promises.open(archivePath, "w");
+  try {
+    const reader = response.body?.getReader?.();
+    if (!reader) throw new Error("更新包数据流不可用，请稍后重试。");
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      hash.update(chunk);
+      received += chunk.length;
+      await file.write(chunk);
+      const now = Date.now();
+      if (now - lastProgressAt >= 180 || (total && received >= total)) {
+        send("update-download-progress", { received, total });
+        lastProgressAt = now;
+      }
+    }
+  } finally {
+    await file.close();
+  }
+  const receivedHash = `sha256:${hash.digest("hex")}`;
+  if (receivedHash !== update.digest) throw new Error("更新包校验失败，已停止安装。");
 }
 
 async function installAvailableUpdate() {
@@ -256,17 +306,7 @@ async function installAvailableUpdate() {
   const scriptPath = path.join(temporaryRoot, "finish-update.ps1");
   await fs.promises.mkdir(temporaryRoot, { recursive: true });
   try {
-    const response = await net.fetch(availableUpdate.assetUrl, {
-      cache: "no-store",
-      headers: { Accept: "application/octet-stream", "User-Agent": `StockPet/${app.getVersion()}` },
-    });
-    if (!response.ok) throw new Error("更新包下载失败，请稍后重试。");
-    const payload = Buffer.from(await response.arrayBuffer());
-    const receivedHash = `sha256:${createHash("sha256").update(payload).digest("hex")}`;
-    if (receivedHash !== availableUpdate.digest) {
-      throw new Error("更新包校验失败，已停止安装。");
-    }
-    await fs.promises.writeFile(archivePath, payload);
+    await downloadUpdateArchive(availableUpdate, archivePath);
     const script = updateScript({
       processId: process.pid,
       archivePath,
@@ -274,6 +314,8 @@ async function installAvailableUpdate() {
       installDirectory,
       executableName: path.basename(process.execPath),
       scriptPath,
+      statusPath: updateResultPath(),
+      targetVersion: availableUpdate.version,
     });
     await fs.promises.writeFile(scriptPath, script, "utf8");
     const updater = spawn("powershell.exe", [
@@ -288,6 +330,19 @@ async function installAvailableUpdate() {
   }
   setTimeout(() => app.quit(), 250);
   return { status: "restarting", version: availableUpdate.version };
+}
+
+function presentUpdateResult() {
+  const result = readJSON(updateResultPath(), null);
+  if (!result?.status) return;
+  fs.unlinkSync(updateResultPath());
+  if (result.status === "success") {
+    new Notification({ title: "StockPet P&L 更新完成", body: result.message || `已更新到 v${result.version}` }).show();
+    send("update-complete", result);
+  } else {
+    new Notification({ title: "StockPet P&L 更新未完成", body: result.message || "请从 Releases 页面手动下载。" }).show();
+    send("update-complete", result);
+  }
 }
 
 async function checkForStartupUpdate() {
@@ -861,6 +916,7 @@ if (!gotLock) {
     createTray();
     registerGlobalShortcut();
     refreshAll().finally(resetRefreshTimer);
+    setTimeout(presentUpdateResult, 1200);
     setTimeout(checkForStartupUpdate, 5000);
   });
 

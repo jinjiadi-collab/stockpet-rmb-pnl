@@ -353,6 +353,9 @@ function showAvailableUpdate(update) {
   $("#update-message").textContent = `发现 v${update.version}，可自动下载、校验并重启安装。`;
   $("#check-custom-update").textContent = "自动更新";
 }
+function formatUpdateSize(bytes) {
+  return `${(Number(bytes || 0) / 1024 / 1024).toFixed(1)} MB`;
+}
 $("#check-custom-update").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   const message = $("#update-message");
@@ -368,6 +371,8 @@ $("#check-custom-update").addEventListener("click", async (event) => {
       showAvailableUpdate(result.update);
       const install = window.confirm(`发现 v${result.update.version}，现在自动下载并安装吗？`);
       if (install) {
+        $("#update-progress").hidden = false;
+        $("#update-progress").value = 0;
         message.textContent = `正在下载 v${result.update.version}，完成后会自动重启…`;
         await window.stockPet.installUpdate();
       }
@@ -468,6 +473,20 @@ window.stockPet.on("quotes-updated", (nextQuotes) => {
   renderPriceAlerts();
 });
 window.stockPet.on("update-available", showAvailableUpdate);
+window.stockPet.on("update-download-progress", ({ received, total }) => {
+  const progress = $("#update-progress");
+  progress.hidden = false;
+  progress.value = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+  $("#update-message").textContent = total > 0
+    ? `正在下载更新：${formatUpdateSize(received)} / ${formatUpdateSize(total)}（${Math.round(progress.value)}%）`
+    : `正在下载更新：${formatUpdateSize(received)}`;
+});
+window.stockPet.on("update-complete", (result) => {
+  $("#update-progress").hidden = true;
+  $("#update-message").textContent = result.status === "success"
+    ? (result.message || `已更新到 v${result.version}`)
+    : `更新未完成：${result.message || "请从发布页手动下载。"}`;
+});
 window.stockPet.bootstrap().then((snapshot) => {
   state = snapshot.state;
   quotes = snapshot.quotes || {};

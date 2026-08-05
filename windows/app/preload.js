@@ -10,6 +10,7 @@ const eventChannels = new Set([
   "refresh-status",
   "update-download-progress",
   "update-available",
+  "update-complete",
 ]);
 
 contextBridge.exposeInMainWorld("stockPet", {
