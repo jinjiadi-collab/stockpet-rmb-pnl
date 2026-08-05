@@ -2,8 +2,8 @@
   "version": "0.1.4",
   "assetName": "StockPet-PnL-Windows-x64-v0.1.4.zip",
   "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.4/StockPet-PnL-Windows-x64-v0.1.4.zip",
-  "digest": "sha256:9ff8d9da817bc28042a30c0e69f01036e4d5ffe03ad88e31d79eb49f5dc66e5f",
-  "size": 120859700,
+  "digest": "sha256:975e87a5ec10fdd2de4cac209536076c4451190ed8042a2b22ecac659f71445e",
+  "size": 120859926,
   "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.4",
   "notes": "全英文发布版：压缩包、解压目录和启动程序均为 StockPet-PnL。"
 }

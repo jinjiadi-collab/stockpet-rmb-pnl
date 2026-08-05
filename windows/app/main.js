@@ -57,6 +57,8 @@ const UPDATES_ENABLED = true;
 const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
 const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/stockpet-rmb-pnl/main/update.json";
+const UPSTREAM_BASE_VERSION = "0.4.3";
+const EDITION_NAME = "StockPet P&L 定制版";
 
 const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
@@ -184,6 +186,10 @@ async function checkForSoftwareUpdate() {
     version: latest.version,
     notes: latest.notes || "",
     releaseUrl: latest.releaseUrl,
+    assetName: latest.assetName,
+    assetUrl: latest.assetUrl,
+    digest: latest.digest,
+    size: latest.size,
   };
   return { status: "available", update: availableUpdate };
 }
@@ -363,6 +369,11 @@ function snapshot() {
     state,
     quotes,
     update: availableUpdate,
+    appInfo: {
+      editionName: EDITION_NAME,
+      customVersion: app.getVersion(),
+      upstreamBaseVersion: UPSTREAM_BASE_VERSION,
+    },
     status: {
       lastRefresh,
       sourceError,

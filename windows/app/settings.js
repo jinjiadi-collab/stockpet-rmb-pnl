@@ -472,6 +472,9 @@ window.stockPet.bootstrap().then((snapshot) => {
   state = snapshot.state;
   quotes = snapshot.quotes || {};
   status = snapshot.status;
+  if (snapshot.appInfo) {
+    $("#app-version").textContent = `Windows x64 · 定制版 v${snapshot.appInfo.customVersion} · 基于原版 v${snapshot.appInfo.upstreamBaseVersion}`;
+  }
   if (snapshot.update) showAvailableUpdate(snapshot.update);
   syncControls();
   renderStatus();
