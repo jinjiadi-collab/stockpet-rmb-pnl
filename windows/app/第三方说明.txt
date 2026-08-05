@@ -1,0 +1,13 @@
+Stock Pet 人民币盈亏版（v0.1.0）
+
+本定制版基于 YellowPancake/StockPet 修改：
+https://github.com/YellowPancake/StockPet
+
+原项目：Copyright (c) 2026 YellowPancake
+原项目许可证：MIT License
+完整的原项目许可证文本位于本文件夹的 LICENSE-StockPet-MIT.txt。
+
+本发布包包含 Electron 运行时。其许可证保留在本文件夹的 LICENSE，
+Chromium 及其第三方组件声明位于 LICENSES.chromium.html。
+
+本定制版未得到 YellowPancake 或 Electron 项目的认可或背书。

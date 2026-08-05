@@ -1,0 +1,11 @@
+{
+  "name": "stock-pet-windows",
+  "productName": "Stock Pet 人民币盈亏版",
+  "version": "0.1.0",
+  "description": "透明悬浮的 A 股、港股和美股分时桌宠，含人民币统一持仓盈亏",
+  "main": "main.js",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "35.1.5"
+  }
+}
