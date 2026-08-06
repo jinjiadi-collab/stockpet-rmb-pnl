@@ -35,7 +35,6 @@ const {
 const { fetchIntraday, fetchLatestQuotes, searchStocks } = require("./quote-service");
 
 const PORTABLE_DATA_DIRECTORY = "data";
-const LEGACY_USER_DATA_DIRECTORIES = ["StockPet P&L", "Stock Pet 人民币盈亏版"];
 
 let overlayWindow = null;
 let settingsWindow = null;
@@ -77,8 +76,6 @@ const statePath = () => configurationPath("settings.json");
 const quoteCachePath = () => configurationPath("quote-cache.json");
 const updateResultPath = () => configurationPath("last-update-result.json");
 const assetPath = (name) => path.join(__dirname, "assets", name);
-const legacyUserDataPaths = (name) => LEGACY_USER_DATA_DIRECTORIES
-  .map((directory) => path.join(app.getPath("appData"), directory, name));
 
 function readJSON(filePath, fallback) {
   try {
@@ -93,37 +90,7 @@ function writeJSON(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
 }
 
-function migrateLegacyUserDataIfNeeded() {
-  const files = ["settings.json", "quote-cache.json", "last-update-result.json"];
-  for (const name of files) {
-    const destination = configurationPath(name);
-    const source = legacyUserDataPaths(name).find((candidate) => fs.existsSync(candidate));
-    if (!fs.existsSync(destination) && source) {
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.copyFileSync(source, destination);
-    }
-  }
-
-  for (const directory of LEGACY_USER_DATA_DIRECTORIES) {
-    const legacySettings = path.join(app.getPath("appData"), directory, "settings.json");
-    if (!fs.existsSync(legacySettings) || !fs.existsSync(statePath())) continue;
-    if (!fs.readFileSync(legacySettings).equals(fs.readFileSync(statePath()))) continue;
-    for (const name of files) {
-      const source = path.join(app.getPath("appData"), directory, name);
-      const destination = configurationPath(name);
-      if (fs.existsSync(source) && fs.existsSync(destination) && fs.readFileSync(source).equals(fs.readFileSync(destination))) {
-        try {
-          fs.rmSync(source, { force: true });
-        } catch {
-          // A transient lock only leaves behind a redundant copy, never loses data.
-        }
-      }
-    }
-  }
-}
-
 function loadData() {
-  migrateLegacyUserDataIfNeeded();
   state = sanitizeState(readJSON(statePath(), {}));
   quoteCache = readJSON(quoteCachePath(), {});
   quotes = { ...quoteCache };

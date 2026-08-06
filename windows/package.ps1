@@ -36,6 +36,7 @@ if (Test-Path -LiteralPath $archivePath) {
 
 New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
 Get-ChildItem -LiteralPath $electronRoot -Force |
+  Where-Object { $_.Name -ne 'data' } |
   Copy-Item -Destination $payloadRoot -Recurse -Force
 
 # This app is Chinese-only. Keep English as Electron's safe fallback, but do not
@@ -48,8 +49,16 @@ Get-ChildItem -LiteralPath $localesDirectory -File -Filter '*.pak' |
 $applicationDestination = Join-Path $payloadRoot 'resources\app'
 New-Item -ItemType Directory -Path $applicationDestination -Force | Out-Null
 Get-ChildItem -LiteralPath $applicationRoot -Force |
-  Where-Object { $_.Name -notin @('node_modules', '.git', '.DS_Store') } |
+  Where-Object { $_.Name -notin @('node_modules', 'data', '.git', '.DS_Store') } |
   Copy-Item -Destination $applicationDestination -Recurse -Force
+
+$privatePayloadFiles = @(
+  Get-ChildItem -LiteralPath $payloadRoot -Recurse -File |
+    Where-Object { $_.Name -in @('settings.json', 'quote-cache.json', 'last-update-result.json') }
+)
+if ((Test-Path -LiteralPath (Join-Path $payloadRoot 'data')) -or $privatePayloadFiles.Count -ne 0) {
+  throw 'Privacy verification failed: a portable data file was copied into the release payload.'
+}
 
 Rename-Item -LiteralPath (Join-Path $payloadRoot 'electron.exe') -NewName 'StockPet-PnL.exe'
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination (Join-Path $payloadRoot 'LICENSE-StockPet-MIT.txt') -Force
