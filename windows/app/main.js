@@ -32,6 +32,10 @@ const {
 } = require("./lib");
 const { fetchIntraday, fetchLatestQuotes, searchStocks } = require("./quote-service");
 
+const USER_DATA_DIRECTORY = "StockPet P&L";
+const LEGACY_USER_DATA_DIRECTORY = "Stock Pet 人民币盈亏版";
+app.setPath("userData", path.join(app.getPath("appData"), USER_DATA_DIRECTORY));
+
 let overlayWindow = null;
 let settingsWindow = null;
 let tray = null;
@@ -64,6 +68,7 @@ const statePath = () => path.join(app.getPath("userData"), "settings.json");
 const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
 const updateResultPath = () => path.join(app.getPath("userData"), "last-update-result.json");
 const assetPath = (name) => path.join(__dirname, "assets", name);
+const legacyUserDataPath = (name) => path.join(app.getPath("appData"), LEGACY_USER_DATA_DIRECTORY, name);
 
 function readJSON(filePath, fallback) {
   try {
@@ -78,7 +83,34 @@ function writeJSON(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
 }
 
+function migrateLegacyUserDataIfNeeded() {
+  const copies = [
+    [legacyUserDataPath("settings.json"), statePath()],
+    [legacyUserDataPath("quote-cache.json"), quoteCachePath()],
+  ];
+  for (const [source, destination] of copies) {
+    if (!fs.existsSync(destination) && fs.existsSync(source)) {
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(source, destination);
+    }
+  }
+
+  const legacySettings = legacyUserDataPath("settings.json");
+  if (fs.existsSync(legacySettings) && fs.existsSync(statePath())) {
+    const legacyContents = fs.readFileSync(legacySettings);
+    const currentContents = fs.readFileSync(statePath());
+    if (legacyContents.equals(currentContents)) {
+      try {
+        fs.rmSync(path.dirname(legacySettings), { recursive: true, force: true });
+      } catch {
+        // The copied configuration remains valid; leave cleanup for a later startup.
+      }
+    }
+  }
+}
+
 function loadData() {
+  migrateLegacyUserDataIfNeeded();
   state = sanitizeState(readJSON(statePath(), {}));
   quoteCache = readJSON(quoteCachePath(), {});
   quotes = { ...quoteCache };
