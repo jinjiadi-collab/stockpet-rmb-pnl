@@ -232,7 +232,15 @@
             <button id="check-custom-update" class="secondary" type="button">检查更新</button>
           </div>
           <p id="update-message" class="muted" aria-live="polite"></p>
-          <progress id="update-progress" max="100" value="0" hidden></progress>
+          <div id="update-progress" class="update-progress" hidden aria-live="polite">
+            <div class="update-progress-summary">
+              <span id="update-progress-label">准备下载更新</span>
+              <b id="update-progress-value">0%</b>
+            </div>
+            <div class="update-progress-track" aria-hidden="true">
+              <span id="update-progress-bar"></span>
+            </div>
+          </div>
         </div>
         <div class="card settings-card author-card">
           <div class="setting-row">

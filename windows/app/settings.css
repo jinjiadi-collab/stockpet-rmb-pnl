@@ -254,10 +254,42 @@ select:focus {
 }
 
 #update-progress {
-  width: 100%;
-  height: 8px;
   margin-top: 10px;
-  accent-color: #2f66df;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f5;
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.update-progress-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #40516d;
+  font-size: 13px;
+}
+
+.update-progress-summary b {
+  color: #2f66df;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-progress-track {
+  height: 7px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe8f8;
+}
+
+#update-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f66df, #5a8cff);
+  transition: width 180ms ease;
 }
 
 #update-notes {

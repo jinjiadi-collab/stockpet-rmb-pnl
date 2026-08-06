@@ -32,9 +32,8 @@ const {
 } = require("./lib");
 const { fetchIntraday, fetchLatestQuotes, searchStocks } = require("./quote-service");
 
-const USER_DATA_DIRECTORY = "StockPet P&L";
-const LEGACY_USER_DATA_DIRECTORY = "Stock Pet 人民币盈亏版";
-app.setPath("userData", path.join(app.getPath("appData"), USER_DATA_DIRECTORY));
+const PORTABLE_DATA_DIRECTORY = "data";
+const LEGACY_USER_DATA_DIRECTORIES = ["StockPet P&L", "Stock Pet 人民币盈亏版"];
 
 let overlayWindow = null;
 let settingsWindow = null;
@@ -64,11 +63,16 @@ const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/s
 const UPSTREAM_BASE_VERSION = "0.4.3";
 const EDITION_NAME = "StockPet P&L 定制版";
 
-const statePath = () => path.join(app.getPath("userData"), "settings.json");
-const quoteCachePath = () => path.join(app.getPath("userData"), "quote-cache.json");
-const updateResultPath = () => path.join(app.getPath("userData"), "last-update-result.json");
+const configurationDirectory = () => app.isPackaged
+  ? path.join(path.dirname(process.execPath), PORTABLE_DATA_DIRECTORY)
+  : path.join(app.getPath("userData"), PORTABLE_DATA_DIRECTORY);
+const configurationPath = (name) => path.join(configurationDirectory(), name);
+const statePath = () => configurationPath("settings.json");
+const quoteCachePath = () => configurationPath("quote-cache.json");
+const updateResultPath = () => configurationPath("last-update-result.json");
 const assetPath = (name) => path.join(__dirname, "assets", name);
-const legacyUserDataPath = (name) => path.join(app.getPath("appData"), LEGACY_USER_DATA_DIRECTORY, name);
+const legacyUserDataPaths = (name) => LEGACY_USER_DATA_DIRECTORIES
+  .map((directory) => path.join(app.getPath("appData"), directory, name));
 
 function readJSON(filePath, fallback) {
   try {
@@ -84,26 +88,29 @@ function writeJSON(filePath, value) {
 }
 
 function migrateLegacyUserDataIfNeeded() {
-  const copies = [
-    [legacyUserDataPath("settings.json"), statePath()],
-    [legacyUserDataPath("quote-cache.json"), quoteCachePath()],
-  ];
-  for (const [source, destination] of copies) {
-    if (!fs.existsSync(destination) && fs.existsSync(source)) {
+  const files = ["settings.json", "quote-cache.json", "last-update-result.json"];
+  for (const name of files) {
+    const destination = configurationPath(name);
+    const source = legacyUserDataPaths(name).find((candidate) => fs.existsSync(candidate));
+    if (!fs.existsSync(destination) && source) {
       fs.mkdirSync(path.dirname(destination), { recursive: true });
       fs.copyFileSync(source, destination);
     }
   }
 
-  const legacySettings = legacyUserDataPath("settings.json");
-  if (fs.existsSync(legacySettings) && fs.existsSync(statePath())) {
-    const legacyContents = fs.readFileSync(legacySettings);
-    const currentContents = fs.readFileSync(statePath());
-    if (legacyContents.equals(currentContents)) {
-      try {
-        fs.rmSync(path.dirname(legacySettings), { recursive: true, force: true });
-      } catch {
-        // The copied configuration remains valid; leave cleanup for a later startup.
+  for (const directory of LEGACY_USER_DATA_DIRECTORIES) {
+    const legacySettings = path.join(app.getPath("appData"), directory, "settings.json");
+    if (!fs.existsSync(legacySettings) || !fs.existsSync(statePath())) continue;
+    if (!fs.readFileSync(legacySettings).equals(fs.readFileSync(statePath()))) continue;
+    for (const name of files) {
+      const source = path.join(app.getPath("appData"), directory, name);
+      const destination = configurationPath(name);
+      if (fs.existsSync(source) && fs.existsSync(destination) && fs.readFileSync(source).equals(fs.readFileSync(destination))) {
+        try {
+          fs.rmSync(source, { force: true });
+        } catch {
+          // A transient lock only leaves behind a redundant copy, never loses data.
+        }
       }
     }
   }
@@ -238,13 +245,21 @@ function powerShellLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-function cmdLiteral(value) {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
 async function launchUpdater(scriptPath) {
-  const command = `start "" /b powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${cmdLiteral(scriptPath)}`;
-  const launcher = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command], {
+  const launcherPath = path.join(path.dirname(scriptPath), "launch-update.vbs");
+  const command = `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`;
+  const launcherScript = [
+    'Set shell = CreateObject("WScript.Shell")',
+    `shell.Run "${command.replaceAll('"', '""')}", 0, False`,
+    'WScript.Sleep 1000',
+    'On Error Resume Next',
+    'CreateObject("Scripting.FileSystemObject").DeleteFile WScript.ScriptFullName, True',
+  ].join("\r\n");
+  await fs.promises.writeFile(
+    launcherPath,
+    Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(launcherScript, "utf16le")]),
+  );
+  const launcher = spawn("wscript.exe", [launcherPath], {
     detached: true,
     stdio: "ignore",
     windowsHide: true,
@@ -304,6 +319,14 @@ function Copy-PayloadWithRetry($sourcePath, $destinationPath, $expectedExecutabl
   throw $lastError
 }
 
+function Remove-ObsoleteLocaleFiles($targetDirectory) {
+  $localesDirectory = Join-Path $targetDirectory 'locales'
+  if (-not (Test-Path -LiteralPath $localesDirectory -PathType Container)) { return }
+  Get-ChildItem -LiteralPath $localesDirectory -File -Filter '*.pak' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notin @('zh-CN.pak', 'en-US.pak') } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
 try {
   while (Get-Process -Id $processIdToWait -ErrorAction SilentlyContinue) {
     Start-Sleep -Milliseconds 300
@@ -325,6 +348,7 @@ try {
   $targetExecutablePath = Join-Path $targetDirectory $targetExecutable
   Stop-TargetAppProcesses $targetExecutablePath
   Copy-PayloadWithRetry $payloadPath $targetDirectory $targetExecutablePath
+  Remove-ObsoleteLocaleFiles $targetDirectory
   Write-UpdateStatus 'success' "已更新到 v$targetVersion"
   Start-Process -FilePath (Join-Path $targetDirectory $targetExecutable) -ArgumentList '--stockpet-updated'
 } catch {

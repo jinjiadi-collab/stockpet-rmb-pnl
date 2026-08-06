@@ -356,6 +356,20 @@ function showAvailableUpdate(update) {
 function formatUpdateSize(bytes) {
   return `${(Number(bytes || 0) / 1024 / 1024).toFixed(1)} MB`;
 }
+function setUpdateProgress(received, total, label) {
+  const progress = $("#update-progress");
+  const percent = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+  progress.hidden = false;
+  $("#update-progress-bar").style.width = `${percent}%`;
+  $("#update-progress-value").textContent = total > 0 ? `${Math.round(percent)}%` : "";
+  $("#update-progress-label").textContent = label || (total > 0
+    ? `${formatUpdateSize(received)} / ${formatUpdateSize(total)}`
+    : `已下载 ${formatUpdateSize(received)}`);
+}
+function hideUpdateProgress() {
+  $("#update-progress").hidden = true;
+  $("#update-progress-bar").style.width = "0";
+}
 $("#check-custom-update").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   const message = $("#update-message");
@@ -371,8 +385,7 @@ $("#check-custom-update").addEventListener("click", async (event) => {
       showAvailableUpdate(result.update);
       const install = window.confirm(`发现 v${result.update.version}，现在自动下载并安装吗？`);
       if (install) {
-        $("#update-progress").hidden = false;
-        $("#update-progress").value = 0;
+        setUpdateProgress(0, Number(result.update.size) || 0, "正在准备下载…");
         message.textContent = `正在下载 v${result.update.version}，完成后会自动重启…`;
         await window.stockPet.installUpdate();
       }
@@ -474,15 +487,14 @@ window.stockPet.on("quotes-updated", (nextQuotes) => {
 });
 window.stockPet.on("update-available", showAvailableUpdate);
 window.stockPet.on("update-download-progress", ({ received, total }) => {
-  const progress = $("#update-progress");
-  progress.hidden = false;
-  progress.value = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+  const percent = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+  setUpdateProgress(received, total);
   $("#update-message").textContent = total > 0
-    ? `正在下载更新：${formatUpdateSize(received)} / ${formatUpdateSize(total)}（${Math.round(progress.value)}%）`
+    ? `正在下载更新：${formatUpdateSize(received)} / ${formatUpdateSize(total)}（${Math.round(percent)}%）`
     : `正在下载更新：${formatUpdateSize(received)}`;
 });
 window.stockPet.on("update-complete", (result) => {
-  $("#update-progress").hidden = true;
+  hideUpdateProgress();
   $("#update-message").textContent = result.status === "success"
     ? (result.message || `已更新到 v${result.version}`)
     : `更新未完成：${result.message || "请从发布页手动下载。"}`;
