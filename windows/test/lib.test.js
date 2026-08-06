@@ -113,6 +113,7 @@ test("market sessions and failure backoff protect fast refresh", () => {
 test("semantic versions detect newer releases", () => {
   assert.equal(isVersionNewer("0.4.0", "0.3.0"), true);
   assert.equal(isVersionNewer("v1.0.0", "0.9.9"), true);
+  assert.equal(isVersionNewer("0.2", "0.1.10"), true);
   assert.equal(isVersionNewer("0.4.0", "0.4.0"), false);
 });
 

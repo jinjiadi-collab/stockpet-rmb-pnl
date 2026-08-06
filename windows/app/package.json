@@ -1,7 +1,7 @@
 {
   "name": "stock-pet-windows",
   "productName": "StockPet P&L",
-  "version": "0.1.10",
+  "version": "0.2",
   "description": "透明悬浮的 A 股、港股和美股分时桌宠，含人民币统一持仓盈亏",
   "main": "main.js",
   "license": "UNLICENSED",

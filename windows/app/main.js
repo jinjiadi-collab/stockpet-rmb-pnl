@@ -62,7 +62,7 @@ let shortcutHealthTimer = null;
 let visibilityScheduleTimer = null;
 
 // 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
-const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
+const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+(?:\.\d+){1,2}\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
 const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/stockpet-rmb-pnl/main/update.json";
 const UPSTREAM_BASE_VERSION = "0.4.4";
