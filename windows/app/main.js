@@ -65,6 +65,7 @@ let visibilityScheduleTimer = null;
 const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+(?:\.\d+){1,2}\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
 const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/stockpet-rmb-pnl/main/update.json";
+const CUSTOM_PROJECT_URL = "https://github.com/jinjiadi-collab/stockpet-rmb-pnl";
 const UPSTREAM_BASE_VERSION = "0.4.4";
 const EDITION_NAME = "StockPet P&L 定制版";
 
@@ -1038,6 +1039,10 @@ function registerIPC() {
   });
   ipcMain.handle("external:open-author", async () => {
     await shell.openExternal("https://github.com/YellowPancake");
+    return { ok: true };
+  });
+  ipcMain.handle("external:open-custom-project", async () => {
+    await shell.openExternal(CUSTOM_PROJECT_URL);
     return { ok: true };
   });
   ipcMain.handle("update:check", () => checkForSoftwareUpdate());

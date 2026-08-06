@@ -191,6 +191,7 @@ function syncControls() {
     "bullSoundEnabled",
     "bearSoundEnabled",
     "alertsEnabled",
+    "flashingEnabled",
     "shortcutEnabled",
     "visibilityScheduleEnabled",
   ]) {
@@ -209,11 +210,11 @@ function syncControls() {
   $("#scheduledHideTime").disabled = !state.visibilityScheduleEnabled;
   $("#alertBasis").value = state.alertBasis;
   const targetMode = state.alertBasis === "targetPrice";
-  $("#percentage-alert-controls").hidden = targetMode;
+  $("#percentage-alert-controls").hidden = targetMode && !state.flashingEnabled;
   $("#price-alert-controls").hidden = !targetMode;
   $("#alert-basis-description").textContent = targetMode
-    ? "为每只股票设置小牛价和小熊价，触达目标价格时提醒"
-    : "涨跌幅以昨收为基准，每次越过阈值只提醒一次";
+    ? "目标价格用于牛熊提醒；字体闪烁仍按下方昨收涨跌幅阈值判断"
+    : "涨跌幅以昨收为基准，提醒与字体闪烁可分别开启";
   $("#alert-rearm-tip").textContent = targetMode
     ? "目标价提醒触发后，价格回到目标内侧至少 0.15% 才会重新布防。行情按刷新频率持续更新。"
     : "股票回到阈值内至少 0.15 个百分点后会重新布防，避免价格在边缘波动时连续提醒。";
@@ -223,8 +224,13 @@ function syncControls() {
   renderStocks();
   renderPositions();
   renderPriceAlerts();
+  const percentageFeaturesEnabled = state.flashingEnabled || (state.alertsEnabled && !targetMode);
   for (const control of $$("#page-alerts input, #page-alerts select, #page-alerts button")) {
-    if (control.id === "alertsEnabled") continue;
+    if (control.id === "alertsEnabled" || control.id === "flashingEnabled") continue;
+    if (control.id === "risingThreshold" || control.id === "fallingThreshold") {
+      control.disabled = !percentageFeaturesEnabled;
+      continue;
+    }
     const item = control.closest("[data-price-alert-id]");
     const ruleEnabled = item?.querySelector(".price-alert-enabled")?.checked ?? true;
     const quoteID = item?.dataset.priceAlertId;
@@ -324,6 +330,7 @@ for (const id of [
   "bullSoundEnabled",
   "bearSoundEnabled",
   "alertsEnabled",
+  "flashingEnabled",
   "shortcutEnabled",
   "visibilityScheduleEnabled",
 ]) {
@@ -368,6 +375,7 @@ $("#reset-appearance").addEventListener("click", () => updateState({
 $("#preview-bull").addEventListener("click", () => window.stockPet.previewAlert("rising"));
 $("#preview-bear").addEventListener("click", () => window.stockPet.previewAlert("falling"));
 $("#github-author").addEventListener("click", () => window.stockPet.openAuthor());
+$("#github-custom-project").addEventListener("click", () => window.stockPet.openCustomProject());
 function showAvailableUpdate(update) {
   availableUpdate = update;
   $("#update-message").textContent = `发现 v${update.version}，可自动下载、校验并重启安装。`;

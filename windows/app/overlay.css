@@ -37,16 +37,14 @@ body {
   border-radius: 21px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   cursor: grab;
+  scrollbar-width: none;
   touch-action: none;
 }
 
 #board::-webkit-scrollbar {
-  width: 6px;
-}
-
-#board::-webkit-scrollbar-thumb {
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.18);
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 #board.dragging {
@@ -95,6 +93,33 @@ body {
 
 .stock-row:last-child {
   border-bottom: 0;
+}
+
+.stock-row.threshold-highlight .identity,
+.stock-row.threshold-highlight .price-block {
+  animation: threshold-text-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes threshold-text-pulse {
+  0%,
+  100% {
+    filter: brightness(0.82);
+    text-shadow: 0 0 0 transparent;
+  }
+
+  50% {
+    filter: brightness(1.38);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--threshold-color), transparent 30%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stock-row.threshold-highlight .identity,
+  .stock-row.threshold-highlight .price-block {
+    animation: none;
+    filter: brightness(1.18);
+    text-shadow: 0 0 7px color-mix(in srgb, var(--threshold-color), transparent 48%);
+  }
 }
 
 .identity,

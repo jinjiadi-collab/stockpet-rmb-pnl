@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidatePattern('^\d+(?:\.\d+){1,2}$')]
+  [ValidatePattern('^\d+\.\d+\.\d+$')]
   [string]$Version,
 
   [string]$OutputDirectory = (Join-Path (Split-Path $PSScriptRoot -Parent) 'outputs')

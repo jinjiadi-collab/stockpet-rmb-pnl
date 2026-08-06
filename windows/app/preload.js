@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("stockPet", {
   previewAlert: (direction) => ipcRenderer.invoke("alert:preview", direction),
   openSettings: () => ipcRenderer.invoke("settings:open"),
   openAuthor: () => ipcRenderer.invoke("external:open-author"),
+  openCustomProject: () => ipcRenderer.invoke("external:open-custom-project"),
   checkForUpdate: () => ipcRenderer.invoke("update:check"),
   openUpdateRelease: () => ipcRenderer.invoke("update:open-release"),
   installUpdate: () => ipcRenderer.invoke("update:install"),

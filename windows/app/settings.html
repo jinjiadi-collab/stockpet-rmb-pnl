@@ -149,12 +149,16 @@
       <section class="page" id="page-alerts">
         <header>
           <h1>牛熊提醒</h1>
-          <p id="alert-basis-description">涨跌幅以昨收为基准，每次越过阈值只提醒一次</p>
+          <p id="alert-basis-description">涨跌幅以昨收为基准，提醒与字体闪烁可分别开启</p>
         </header>
         <div class="card settings-card">
           <label class="setting-row">
-            <span><strong>开启牛熊提醒</strong><small>关闭后不再弹出小牛或小熊，也不会播放声音</small></span>
+            <span><strong>开启牛熊提醒</strong><small>控制小牛、小熊弹窗和提示声音</small></span>
             <input id="alertsEnabled" class="switch" type="checkbox" />
+          </label>
+          <label class="setting-row">
+            <span><strong>阈值字体闪烁</strong><small>达到下方涨跌幅阈值时，仅股票文字闪烁</small></span>
+            <input id="flashingEnabled" class="switch" type="checkbox" />
           </label>
           <label class="setting-row">
             <span><strong>提醒依据</strong></span>
@@ -262,6 +266,10 @@
           <div class="setting-row">
             <span><strong>GitHub 作者</strong><small>盘宠 StockPet</small></span>
             <button id="github-author" class="author-link" type="button">@YellowPancake ↗</button>
+          </div>
+          <div class="setting-row">
+            <span><strong>定制版项目主页</strong><small>StockPet P&amp;L · Windows 定制版</small></span>
+            <button id="github-custom-project" class="author-link" type="button">stockpet-rmb-pnl ↗</button>
           </div>
         </div>
       </section>

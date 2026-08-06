@@ -347,6 +347,9 @@ function sanitizeState(candidate = {}) {
     bullSoundEnabled: candidate.bullSoundEnabled !== false,
     bearSoundEnabled: candidate.bearSoundEnabled !== false,
     alertsEnabled: candidate.alertsEnabled !== false,
+    flashingEnabled: candidate.flashingEnabled === undefined
+      ? candidate.alertsEnabled !== false
+      : candidate.flashingEnabled !== false,
     alertOpacity: number(candidate.alertOpacity, 0.94, 0.2, 1),
     shortcutEnabled: candidate.shortcutEnabled !== false,
     shortcutModifier: [

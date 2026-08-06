@@ -113,7 +113,7 @@ test("market sessions and failure backoff protect fast refresh", () => {
 test("semantic versions detect newer releases", () => {
   assert.equal(isVersionNewer("0.4.0", "0.3.0"), true);
   assert.equal(isVersionNewer("v1.0.0", "0.9.9"), true);
-  assert.equal(isVersionNewer("0.2", "0.1.10"), true);
+  assert.equal(isVersionNewer("0.2.1", "0.2"), true);
   assert.equal(isVersionNewer("0.4.0", "0.4.0"), false);
 });
 
@@ -223,6 +223,12 @@ test("persisted settings are clamped and a deliberately empty list stays empty",
 test("stock code and market are hidden by default and can be enabled", () => {
   assert.equal(sanitizeState().showStockMeta, false);
   assert.equal(sanitizeState({ showStockMeta: true }).showStockMeta, true);
+});
+
+test("font flashing is independent while preserving the previous alert preference", () => {
+  assert.equal(sanitizeState({ alertsEnabled: false }).flashingEnabled, false);
+  assert.equal(sanitizeState({ alertsEnabled: false, flashingEnabled: true }).flashingEnabled, true);
+  assert.equal(sanitizeState({ alertsEnabled: true, flashingEnabled: false }).flashingEnabled, false);
 });
 
 test("change display defaults to percentage and accepts price amount", () => {

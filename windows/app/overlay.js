@@ -89,6 +89,14 @@ function positionProfit(symbol, quote) {
   return (price - costPrice) * quantity * exchangeRate;
 }
 
+function thresholdHighlightDirection(quote) {
+  if (!state.flashingEnabled || !quote) return null;
+  const change = Number(quote.changePercent);
+  if (change >= Number(state.risingThreshold)) return "rising";
+  if (change <= -Number(state.fallingThreshold)) return "falling";
+  return null;
+}
+
 function linePath(points, previousClose) {
   if (!Array.isArray(points) || points.length < 2) return "";
   const maxPoints = 260;
@@ -158,8 +166,12 @@ function render() {
     const path = linePath(quote?.points, quote?.previousClose);
     const baseline = baselineY(quote);
     const profit = positionProfit(symbol, quote);
+    const highlightDirection = thresholdHighlightDirection(quote);
+    const highlightColor = highlightDirection
+      ? stockColor(symbol.market, highlightDirection === "rising" ? 1 : -1)
+      : color;
     return `
-      <article class="stock-row" style="--stock-color:${color}">
+      <article class="stock-row ${highlightDirection ? "threshold-highlight" : ""}" style="--stock-color:${color};--threshold-color:${highlightColor}">
         <div class="identity ${state.showStockMeta ? "" : "meta-hidden"}">
           <div class="name">${escapeHTML(symbol.name)}</div>
           ${state.showStockMeta ? `<div class="meta">
