@@ -1,9 +1,9 @@
 {
-  "version": "0.1.6",
-  "assetName": "StockPet-PnL-Windows-x64-v0.1.6.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.6/StockPet-PnL-Windows-x64-v0.1.6.zip",
-  "digest": "sha256:b63b025ae0f13bb09416ab582901faa9fbb324e1918e765edb1c3e69ec3e2c63",
-  "size": 120861028,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.6",
+  "version": "0.1.7",
+  "assetName": "StockPet-PnL-Windows-x64-v0.1.7.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.7/StockPet-PnL-Windows-x64-v0.1.7.zip",
+  "digest": "sha256:5880b334262cdf09c14f615c19a2e0680e355d16759cd897133585fadc434caa",
+  "size": 120861407,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.7",
   "notes": "更新体验修复：更可靠地启动后台更新器，显示下载进度与完成通知，并优化更新页面文案。"
 }

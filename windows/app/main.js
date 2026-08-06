@@ -239,6 +239,39 @@ function Write-UpdateStatus($status, $message) {
   @{ status = $status; version = $targetVersion; message = $message } | ConvertTo-Json -Compress | Set-Content -LiteralPath $statusPath -Encoding UTF8
 }
 
+function Stop-TargetAppProcesses($expectedExecutablePath) {
+  $deadline = (Get-Date).AddSeconds(12)
+  do {
+    $processes = @(
+      Get-CimInstance Win32_Process -Filter "Name = '$targetExecutable'" -ErrorAction SilentlyContinue |
+        Where-Object {
+          $_.ExecutablePath -and
+          [string]::Equals($_.ExecutablePath, $expectedExecutablePath, [System.StringComparison]::OrdinalIgnoreCase)
+        }
+    )
+    if ($processes.Count -eq 0) { return }
+    $processes | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Milliseconds 500
+  } while ((Get-Date) -lt $deadline)
+
+  throw "无法关闭正在占用更新文件的 $targetExecutable 进程。"
+}
+
+function Copy-PayloadWithRetry($sourcePath, $destinationPath, $expectedExecutablePath) {
+  $lastError = $null
+  for ($attempt = 1; $attempt -le 12; $attempt++) {
+    try {
+      Get-ChildItem -LiteralPath $sourcePath -Force | Copy-Item -Destination $destinationPath -Recurse -Force -ErrorAction Stop
+      return
+    } catch {
+      $lastError = $_
+      Stop-TargetAppProcesses $expectedExecutablePath
+      Start-Sleep -Milliseconds 650
+    }
+  }
+  throw $lastError
+}
+
 try {
   while (Get-Process -Id $processIdToWait -ErrorAction SilentlyContinue) {
     Start-Sleep -Milliseconds 300
@@ -257,7 +290,9 @@ try {
     $targetExecutable = 'StockPet-PnL.exe'
   }
   New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
-  Get-ChildItem -LiteralPath $payloadPath -Force | Copy-Item -Destination $targetDirectory -Recurse -Force
+  $targetExecutablePath = Join-Path $targetDirectory $targetExecutable
+  Stop-TargetAppProcesses $targetExecutablePath
+  Copy-PayloadWithRetry $payloadPath $targetDirectory $targetExecutablePath
   Write-UpdateStatus 'success' "已更新到 v$targetVersion"
   Start-Process -FilePath (Join-Path $targetDirectory $targetExecutable) -ArgumentList '--stockpet-updated'
 } catch {
