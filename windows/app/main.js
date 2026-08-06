@@ -9,6 +9,7 @@ const {
   nativeImage,
   net,
   Notification,
+  powerMonitor,
   screen,
   shell,
   Tray,
@@ -29,6 +30,7 @@ const {
   releaseDigest,
   releaseParts,
   sanitizeState,
+  shouldScheduleShow,
 } = require("./lib");
 const { fetchIntraday, fetchLatestQuotes, searchStocks } = require("./quote-service");
 
@@ -55,12 +57,15 @@ let quitting = false;
 let overlayDragStart = null;
 let availableUpdate = null;
 const UPDATES_ENABLED = true;
+let registeredShortcut = null;
+let shortcutHealthTimer = null;
+let visibilityScheduleTimer = null;
 
 // 只检查本项目自己的 GitHub Release，绝不连接原项目的更新源。
 const UPDATE_ASSET_PATTERN = /^StockPet-(?:RMB-)?PnL-Windows-x64-v\d+\.\d+\.\d+\.zip$/i;
 const GITHUB_RELEASES_API = "https://api.github.com/repos/jinjiadi-collab/stockpet-rmb-pnl/releases/latest";
 const UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/jinjiadi-collab/stockpet-rmb-pnl/main/update.json";
-const UPSTREAM_BASE_VERSION = "0.4.3";
+const UPSTREAM_BASE_VERSION = "0.4.4";
 const EDITION_NAME = "StockPet P&L 定制版";
 
 const configurationDirectory = () => app.isPackaged
@@ -319,6 +324,18 @@ function Copy-PayloadWithRetry($sourcePath, $destinationPath, $expectedExecutabl
   throw $lastError
 }
 
+function Wait-ForOriginalAppExit($processIdToWait, $expectedExecutablePath) {
+  $deadline = (Get-Date).AddSeconds(4)
+  do {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processIdToWait" -ErrorAction SilentlyContinue
+    if (-not $process) { return }
+    if (-not $process.ExecutablePath -or -not [string]::Equals($process.ExecutablePath, $expectedExecutablePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  } while ((Get-Date) -lt $deadline)
+}
+
 function Remove-ObsoleteLocaleFiles($targetDirectory) {
   $localesDirectory = Join-Path $targetDirectory 'locales'
   if (-not (Test-Path -LiteralPath $localesDirectory -PathType Container)) { return }
@@ -328,9 +345,7 @@ function Remove-ObsoleteLocaleFiles($targetDirectory) {
 }
 
 try {
-  while (Get-Process -Id $processIdToWait -ErrorAction SilentlyContinue) {
-    Start-Sleep -Milliseconds 300
-  }
+  Wait-ForOriginalAppExit $processIdToWait (Join-Path $installDirectory $executableName)
   New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
   Expand-Archive -LiteralPath $archivePath -DestinationPath $stagingPath -Force
   $payloadDirectories = @(Get-ChildItem -LiteralPath $stagingPath -Directory)
@@ -586,13 +601,59 @@ function toggleOverlay() {
   rebuildTrayMenu();
 }
 
+function setOverlayVisible(visible) {
+  if (!overlayWindow) return;
+  visible ? overlayWindow.showInactive() : overlayWindow.hide();
+  rebuildTrayMenu();
+}
+
+function resetVisibilitySchedule(reconcileNow = true) {
+  if (visibilityScheduleTimer) clearTimeout(visibilityScheduleTimer);
+  visibilityScheduleTimer = null;
+  if (!state.visibilityScheduleEnabled || state.scheduledShowTime === state.scheduledHideTime) return;
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  if (reconcileNow) {
+    const visible = shouldScheduleShow(nowMinutes, state.scheduledShowTime, state.scheduledHideTime);
+    if (visible !== null) setOverlayVisible(visible);
+  }
+  const nextDate = (clock) => {
+    const [hour, minute] = clock.split(":").map(Number);
+    const result = new Date(now);
+    result.setHours(hour, minute, 0, 0);
+    if (result <= now) result.setDate(result.getDate() + 1);
+    return result;
+  };
+  const next = [nextDate(state.scheduledShowTime), nextDate(state.scheduledHideTime)]
+    .sort((left, right) => left - right)[0];
+  visibilityScheduleTimer = setTimeout(() => resetVisibilitySchedule(true), next - now);
+}
+
+function configuredShortcut() {
+  return `${state.shortcutModifier}+${state.shortcutKey}`;
+}
+
 function registerGlobalShortcut() {
   globalShortcut.unregisterAll();
-  if (!state.shortcutEnabled) return;
-  globalShortcut.register(
-    `${state.shortcutModifier}+${state.shortcutKey}`,
-    toggleOverlay,
-  );
+  registeredShortcut = null;
+  if (!state.shortcutEnabled) return true;
+  const accelerator = configuredShortcut();
+  const succeeded = globalShortcut.register(accelerator, () => {
+    setImmediate(toggleOverlay);
+  });
+  if (succeeded && globalShortcut.isRegistered(accelerator)) {
+    registeredShortcut = accelerator;
+    return true;
+  }
+  return false;
+}
+
+function ensureGlobalShortcutRegistered() {
+  if (!state.shortcutEnabled || quitting || !app.isReady()) return;
+  const accelerator = configuredShortcut();
+  if (registeredShortcut === accelerator && globalShortcut.isRegistered(accelerator)) return;
+  registerGlobalShortcut();
 }
 
 function createOverlayWindow() {
@@ -622,7 +683,8 @@ function createOverlayWindow() {
   overlayWindow.loadFile(path.join(__dirname, "overlay.html"));
   overlayWindow.once("ready-to-show", () => {
     updateOverlayGeometry();
-    overlayWindow.showInactive();
+    if (state.visibilityScheduleEnabled) resetVisibilitySchedule(true);
+    else overlayWindow.showInactive();
   });
   overlayWindow.on("closed", () => {
     overlayDragStart = null;
@@ -764,12 +826,18 @@ function applyStatePatch(patch) {
     patch.shortcutModifier !== undefined ||
     patch.shortcutKey !== undefined
   );
+  const scheduleChanged = (
+    patch.visibilityScheduleEnabled !== undefined ||
+    patch.scheduledShowTime !== undefined ||
+    patch.scheduledHideTime !== undefined
+  );
   state = sanitizeState({ ...state, ...patch });
   thresholdStates = {};
   persistState();
   notifyStateChanged();
   if (!state.alertsEnabled) send("alert-dismiss", null);
   if (shortcutChanged) registerGlobalShortcut();
+  if (scheduleChanged) resetVisibilitySchedule(true);
   if (state.refreshInterval !== previousRefreshInterval) resetRefreshTimer();
   return state;
 }
@@ -904,7 +972,7 @@ async function performLatestRefresh(symbols) {
         updatedAt: update.sourceTimestamp,
         sourceTimestamp: update.sourceTimestamp,
         isStale: false,
-        source: "腾讯秒级报价",
+        source: update.source === "eastmoney" ? "东方财富指数报价" : "腾讯秒级报价",
       };
       quotes[id] = quote;
       quoteCache[id] = quote;
@@ -1020,6 +1088,17 @@ if (!gotLock) {
     createOverlayWindow();
     createTray();
     registerGlobalShortcut();
+    resetVisibilitySchedule(true);
+    shortcutHealthTimer = setInterval(ensureGlobalShortcutRegistered, 3000);
+    app.on("browser-window-blur", () => setImmediate(ensureGlobalShortcutRegistered));
+    powerMonitor.on("resume", () => {
+      ensureGlobalShortcutRegistered();
+      resetVisibilitySchedule(true);
+    });
+    powerMonitor.on("unlock-screen", () => {
+      ensureGlobalShortcutRegistered();
+      resetVisibilitySchedule(true);
+    });
     refreshAll().finally(resetRefreshTimer);
     setTimeout(presentUpdateResult, 1200);
     setTimeout(checkForStartupUpdate, 5000);
@@ -1029,9 +1108,12 @@ if (!gotLock) {
     quitting = true;
     if (latestRefreshTimer) clearTimeout(latestRefreshTimer);
     if (intradayRefreshTimer) clearTimeout(intradayRefreshTimer);
+    if (shortcutHealthTimer) clearInterval(shortcutHealthTimer);
+    if (visibilityScheduleTimer) clearTimeout(visibilityScheduleTimer);
     refreshGeneration += 1;
     persistQuotes();
     globalShortcut.unregisterAll();
+    registeredShortcut = null;
   });
 
   app.on("window-all-closed", () => {

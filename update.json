@@ -1,9 +1,9 @@
 {
-  "version": "0.1.9",
-  "assetName": "StockPet-PnL-Windows-x64-v0.1.9.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.9/StockPet-PnL-Windows-x64-v0.1.9.zip",
-  "digest": "sha256:715b47e602abbff9bd6511cf0246d8d5a5e9df1f4844c1b9aa0b032c28348da2",
-  "size": 110163046,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.9",
-  "notes": "更新可靠性、进度界面与发布包精简优化。"
+  "version": "0.1.10",
+  "assetName": "StockPet-PnL-Windows-x64-v0.1.10.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.1.10/StockPet-PnL-Windows-x64-v0.1.10.zip",
+  "digest": "sha256:881cbfa00d386882d360b8045c92bec5741106462be4ff1b00fdd6d4a25502df",
+  "size": 110165396,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.1.10",
+  "notes": "同步原版 StockPet v0.4.4，并修复自动更新在程序退出后的启动与等待逻辑。"
 }
