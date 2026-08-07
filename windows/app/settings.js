@@ -69,17 +69,25 @@ function positionProfit(symbol, quote, position) {
   return (price - costPrice) * quantity * exchangeRate;
 }
 
+function marketProfitColor(_market, value) {
+  if (!Number.isFinite(value) || value === 0) return "";
+  return value > 0 ? "#d84e5a" : "#1e9a6b";
+}
+
 function renderPositions() {
   if (!state) return;
   const pnlEnabled = state.pnlEnabled;
-  const profits = [];
+  const profitEntries = [];
   const list = $("#positions-list");
   list.innerHTML = state.symbols.length
     ? state.symbols.map((symbol) => {
         const position = state.positions[symbol.quoteID] || {};
         const quote = quotes[symbol.quoteID];
         const profit = pnlEnabled ? positionProfit(symbol, quote, position) : null;
-        if (Number.isFinite(profit)) profits.push(profit);
+        if (Number.isFinite(profit)) {
+          profitEntries.push({ market: symbol.market, value: profit });
+        }
+        const profitColor = marketProfitColor(symbol.market, profit);
         const defaultRate = symbol.market === "aShare" ? 1 : "";
         const currentValue = Number(quote?.lastPrice) > 0
           ? formatLivePrice(symbol, quote.lastPrice)
@@ -91,7 +99,7 @@ function renderPositions() {
                 <div class="stock-name">${escapeHTML(symbol.name)}</div>
                 <div class="stock-meta">${escapeHTML(symbol.code)} · ${marketLabels[symbol.market]} · ${currentValue}</div>
               </div>
-              <strong class="position-profit ${profit > 0 ? "positive" : profit < 0 ? "negative" : ""}">${pnlEnabled ? formatCny(profit) : "已隐藏"}</strong>
+              <strong class="position-profit" style="color:${profitColor}">${pnlEnabled ? formatCny(profit) : "已隐藏"}</strong>
             </div>
             <div class="position-fields">
               <label>成本价
@@ -108,16 +116,21 @@ function renderPositions() {
         `;
       }).join("")
     : '<div class="empty-list">请先在“桌面股票”中添加股票</div>';
-  const total = profits.reduce((sum, value) => sum + value, 0);
+  const total = profitEntries.reduce((sum, entry) => sum + entry.value, 0);
+  const summaryMarket = profitEntries.length
+    && profitEntries.every((entry) => entry.market === "unitedStates")
+    ? "unitedStates"
+    : "aShare";
   $("#portfolio-profit").textContent = pnlEnabled
-    ? (profits.length ? formatCny(total) : "—")
+    ? (profitEntries.length ? formatCny(total) : "—")
     : "已关闭";
-  $("#portfolio-profit").className = pnlEnabled
-    ? (total > 0 ? "positive" : total < 0 ? "negative" : "")
-    : "muted-profit";
+  $("#portfolio-profit").className = pnlEnabled ? "" : "muted-profit";
+  $("#portfolio-profit").style.color = pnlEnabled
+    ? marketProfitColor(summaryMarket, total)
+    : "";
   $("#portfolio-profit-note").textContent = pnlEnabled
-    ? (profits.length
-      ? `已按 ${profits.length} 只已配置持仓计算`
+    ? (profitEntries.length
+      ? `已按 ${profitEntries.length} 只已配置持仓计算`
       : "请为持仓填写成本价、数量和汇率")
     : "桌宠和设置页均不显示盈亏金额，持仓数据仍保留";
   $("#page-positions").classList.toggle("pnl-disabled", !pnlEnabled);
@@ -256,7 +269,8 @@ function syncControls() {
 
 function renderStatus() {
   if (!status) return;
-  $("#data-source").textContent = status.source || "腾讯秒级报价 · 腾讯分时 · 东方财富备用";
+  $("#data-source").textContent = status.source
+    || "腾讯/东方财富常规行情 · Nasdaq盘前盘后 · CNBC备用";
   $("#last-refresh").textContent = status.lastRefresh
     ? new Date(status.lastRefresh).toLocaleString("zh-CN")
     : "尚未刷新";

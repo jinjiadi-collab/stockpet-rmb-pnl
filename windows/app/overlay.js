@@ -144,14 +144,22 @@ function render() {
   boardElement.style.background = `rgba(19, 22, 30, ${state.backgroundOpacity})`;
   alertElement.style.opacity = state.alertOpacity;
   emptyElement.hidden = state.symbols.length > 0;
-  const profits = state.pnlEnabled
+  const profitEntries = state.pnlEnabled
     ? state.symbols
-      .map((symbol) => positionProfit(symbol, quotes[symbol.quoteID]))
-      .filter(Number.isFinite)
+      .map((symbol) => ({
+        market: symbol.market,
+        value: positionProfit(symbol, quotes[symbol.quoteID]),
+      }))
+      .filter((entry) => Number.isFinite(entry.value))
     : [];
-  const totalProfit = profits.reduce((sum, value) => sum + value, 0);
-  const pnlSummary = profits.length
-    ? `<div class="pnl-summary">持仓总盈亏 <strong class="${totalProfit > 0 ? "positive" : totalProfit < 0 ? "negative" : ""}">${formatCny(totalProfit)}</strong></div>`
+  const totalProfit = profitEntries.reduce((sum, entry) => sum + entry.value, 0);
+  const summaryMarket = profitEntries.length
+    && profitEntries.every((entry) => entry.market === "unitedStates")
+    ? "unitedStates"
+    : "aShare";
+  const summaryColor = totalProfit === 0 ? "" : stockColor(summaryMarket, totalProfit);
+  const pnlSummary = profitEntries.length
+    ? `<div class="pnl-summary">持仓总盈亏 <strong style="color:${summaryColor}">${formatCny(totalProfit)}</strong></div>`
     : "";
   rowsElement.innerHTML = pnlSummary + state.symbols.map((symbol) => {
     const quote = quotes[symbol.quoteID];
@@ -166,6 +174,12 @@ function render() {
     const path = linePath(quote?.points, quote?.previousClose);
     const baseline = baselineY(quote);
     const profit = state.pnlEnabled ? positionProfit(symbol, quote) : null;
+    const profitColor = Number.isFinite(profit) && profit !== 0
+      ? stockColor(symbol.market, profit)
+      : "";
+    const sessionLabel = quote?.session === "preMarket"
+      ? '<span class="session-label">盘前</span>'
+      : quote?.session === "afterHours" ? '<span class="session-label">盘后</span>' : "";
     const highlightDirection = thresholdHighlightDirection(quote);
     const highlightColor = highlightDirection
       ? stockColor(symbol.market, highlightDirection === "rising" ? 1 : -1)
@@ -186,8 +200,8 @@ function render() {
         </svg>
         <div class="price-block">
           <div class="last-price">${quote?.isStale ? '<span class="stale">⟳</span>' : ""}${formatPrice(quote?.lastPrice)}</div>
-          <div class="percent">${quote ? changeText : "加载中…"}</div>
-          ${Number.isFinite(profit) ? `<div class="pnl ${profit > 0 ? "positive" : profit < 0 ? "negative" : ""}">盈亏 ${formatCny(profit)}</div>` : ""}
+          <div class="percent">${quote ? changeText : "加载中…"}${sessionLabel}</div>
+          ${Number.isFinite(profit) ? `<div class="pnl" style="color:${profitColor}">盈亏 ${formatCny(profit)}</div>` : ""}
         </div>
       </article>
     `;

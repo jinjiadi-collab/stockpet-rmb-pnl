@@ -214,6 +214,18 @@ body {
   line-height: 1;
 }
 
+.session-label {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font-size: calc(10px * var(--font-scale));
+  line-height: 1;
+  vertical-align: 2px;
+  opacity: 0.82;
+}
+
 .pnl {
   margin-top: 5px;
   font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;

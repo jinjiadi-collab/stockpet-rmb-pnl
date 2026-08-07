@@ -11,11 +11,14 @@ const {
   instrumentTypeForSearchItem,
   marketForSearchItem,
   isMarketOpen,
+  marketSession,
   isVersionNewer,
   overlayDragPosition,
   overlayGeometry,
   positionProfitCny,
+  parseCnbcExtended,
   parseEastmoneyLatest,
+  parseNasdaqChart,
   parseTencentMinute,
   parseTencentRealtime,
   parseTrend,
@@ -125,6 +128,10 @@ test("market sessions and failure backoff protect fast refresh", () => {
   assert.equal(isMarketOpen("aShare", new Date("2026-08-03T02:00:00Z")), true);
   assert.equal(isMarketOpen("aShare", new Date("2026-08-03T04:00:00Z")), false);
   assert.equal(isMarketOpen("unitedStates", new Date("2026-08-03T15:00:00Z")), true);
+  assert.equal(marketSession("unitedStates", new Date("2026-08-03T08:30:00Z")), "preMarket");
+  assert.equal(marketSession("unitedStates", new Date("2026-08-03T15:00:00Z")), "regular");
+  assert.equal(marketSession("unitedStates", new Date("2026-08-03T21:00:00Z")), "afterHours");
+  assert.equal(marketSession("unitedStates", new Date("2026-08-04T00:30:00Z")), "closed");
   assert.equal(failureBackoffSeconds(1, 1), 3);
   assert.equal(failureBackoffSeconds(1, 4), 30);
 });
@@ -186,6 +193,47 @@ test("minute formats are parsed into chart points", () => {
     high: 13,
     low: 11.8,
   });
+});
+
+test("Nasdaq and CNBC extended-hours quotes use the regular close baseline", () => {
+  const symbol = {
+    code: "NVDA",
+    name: "英伟达",
+    market: "unitedStates",
+    quoteID: "105.NVDA",
+  };
+  const first = Date.UTC(2026, 7, 7, 4, 0);
+  const nasdaq = parseNasdaqChart({
+    data: {
+      previousClose: "$219.22",
+      lastSalePrice: "$219.60",
+      chart: [
+        { x: first, y: 219.35 },
+        { x: first + 60_000, y: 219.6 },
+      ],
+    },
+  }, symbol);
+  assert.equal(nasdaq.lastPrice, 219.6);
+  assert.equal(nasdaq.previousClose, 219.22);
+  assert.equal(nasdaq.source, "nasdaq");
+  assert.equal(nasdaq.points.length, 2);
+  assert.equal(nasdaq.sourceTimestamp, "2026-08-07T08:01:00.000Z");
+
+  const cnbc = parseCnbcExtended({
+    FormattedQuoteResult: {
+      FormattedQuote: [{
+        previous_day_closing: "219.22",
+        ExtendedMktQuote: {
+          last: "219.60",
+          last_time: "2026-08-07T04:01:00.000-0400",
+        },
+      }],
+    },
+  }, symbol);
+  assert.equal(cnbc.lastPrice, 219.6);
+  assert.equal(cnbc.previousClose, 219.22);
+  assert.equal(cnbc.source, "cnbc");
+  assert.equal(cnbc.sourceTimestamp, nasdaq.sourceTimestamp);
 });
 
 test("a single Tencent point is not enough to draw an intraday chart", () => {

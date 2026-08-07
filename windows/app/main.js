@@ -621,7 +621,7 @@ function snapshot() {
     status: {
       lastRefresh,
       sourceError,
-      source: "腾讯秒级报价 · 腾讯分时 · 东方财富备用",
+      source: "腾讯/东方财富常规行情 · Nasdaq盘前盘后 · CNBC备用",
     },
   };
 }
@@ -1041,7 +1041,12 @@ async function performLatestRefresh(symbols) {
         updatedAt: update.sourceTimestamp,
         sourceTimestamp: update.sourceTimestamp,
         isStale: false,
-        source: update.source === "eastmoney" ? "东方财富指数报价" : "腾讯秒级报价",
+        session: update.session || existing?.session || "regular",
+        source: {
+          eastmoney: "东方财富指数报价",
+          nasdaq: "Nasdaq盘前盘后",
+          cnbc: "CNBC盘前盘后备用",
+        }[update.source] || "腾讯秒级报价",
       };
       quotes[id] = quote;
       quoteCache[id] = quote;

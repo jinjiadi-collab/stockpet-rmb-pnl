@@ -5,8 +5,11 @@ const {
   changePercent,
   hasDrawableIntradayData,
   instrumentTypeForSearchItem,
+  marketSession,
   marketForSearchItem,
+  parseCnbcExtended,
   parseEastmoneyLatest,
+  parseNasdaqChart,
   parseTencentMinute,
   parseTencentRealtime,
   parseTrend,
@@ -15,8 +18,9 @@ const {
 } = require("./lib");
 
 const SEARCH_TOKEN = "D43BF722C8E33DA55D5C6812C6C46";
+const cnbcPointCache = new Map();
 
-async function requestJSON(url) {
+async function requestJSON(url, headers = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
@@ -25,6 +29,7 @@ async function requestJSON(url) {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         Referer: "https://quote.eastmoney.com/",
+        ...headers,
       },
     });
     if (!response.ok) throw new Error(`行情服务返回 ${response.status}`);
@@ -143,7 +148,56 @@ async function fetchEastmoney(symbol) {
   };
 }
 
+async function fetchNasdaqExtended(symbol) {
+  const ticker = encodeURIComponent(String(symbol.code || "").toUpperCase());
+  const response = await requestJSON(
+    `https://api.nasdaq.com/api/quote/${ticker}/chart?assetclass=stocks`,
+    {
+      Accept: "application/json, text/plain, */*",
+      Origin: "https://www.nasdaq.com",
+      Referer: `https://www.nasdaq.com/market-activity/stocks/${ticker.toLowerCase()}`,
+    },
+  );
+  const quote = parseNasdaqChart(response, symbol);
+  if (!quote) throw new Error("Nasdaq 盘前盘后数据暂不可用");
+  return quote;
+}
+
+async function fetchCnbcExtended(symbol) {
+  const ticker = encodeURIComponent(String(symbol.code || "").toUpperCase());
+  const response = await requestJSON(
+    `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=${ticker}&requestMethod=quick&noform=1&partnerId=2&fund=1&exthrs=1&output=json`,
+    {
+      Accept: "application/json, text/plain, */*",
+      Referer: `https://www.cnbc.com/quotes/${ticker}`,
+    },
+  );
+  const quote = parseCnbcExtended(response, symbol);
+  if (!quote) throw new Error("CNBC 盘前盘后数据暂不可用");
+  const cached = cnbcPointCache.get(symbol.quoteID) || [];
+  const points = cached.at(-1)?.time === quote.sourceTimestamp
+    ? cached
+    : [...cached, quote.points[0]].slice(-480);
+  cnbcPointCache.set(symbol.quoteID, points);
+  return { ...quote, points, dayOpen: points[0].price };
+}
+
+async function fetchExtendedUS(symbol) {
+  const session = marketSession("unitedStates");
+  try {
+    return { ...await fetchNasdaqExtended(symbol), session };
+  } catch {
+    return { ...await fetchCnbcExtended(symbol), session };
+  }
+}
+
 async function fetchIntraday(symbol) {
+  const session = marketSession(symbol.market);
+  if (symbol.market === "unitedStates"
+      && symbol.instrumentType !== "index"
+      && ["preMarket", "afterHours"].includes(session)) {
+    return fetchExtendedUS(symbol);
+  }
   if (symbol.instrumentType === "index") return fetchEastmoney(symbol);
   try {
     return await fetchTencent(symbol);
@@ -157,8 +211,15 @@ async function fetchLatestQuotes(symbols) {
   let lastError = null;
   const stocks = symbols.filter((symbol) => symbol.instrumentType !== "index");
   const indices = symbols.filter((symbol) => symbol.instrumentType === "index");
-  for (let start = 0; start < stocks.length; start += 40) {
-    const batch = stocks.slice(start, start + 40);
+  const now = new Date();
+  const extendedUS = stocks.filter((symbol) => (
+    symbol.market === "unitedStates"
+      && ["preMarket", "afterHours"].includes(marketSession(symbol.market, now))
+  ));
+  const extendedIDs = new Set(extendedUS.map((symbol) => symbol.quoteID));
+  const standardStocks = stocks.filter((symbol) => !extendedIDs.has(symbol.quoteID));
+  for (let start = 0; start < standardStocks.length; start += 40) {
+    const batch = standardStocks.slice(start, start + 40);
     const codes = batch.map(tencentRealtimeCode).join(",");
     try {
       const text = await requestText(
@@ -169,6 +230,22 @@ async function fetchLatestQuotes(symbols) {
       lastError = error;
     }
   }
+  const extendedResults = await Promise.allSettled(extendedUS.map(fetchExtendedUS));
+  extendedResults.forEach((result) => {
+    if (result.status === "fulfilled") {
+      const quote = result.value;
+      updates.push({
+        symbol: quote.symbol,
+        lastPrice: quote.lastPrice,
+        previousClose: quote.previousClose,
+        sourceTimestamp: quote.sourceTimestamp,
+        source: quote.source,
+        session: quote.session,
+      });
+    } else {
+      lastError = result.reason;
+    }
+  });
   for (let start = 0; start < indices.length; start += 40) {
     const batch = indices.slice(start, start + 40);
     const params = new URLSearchParams({
@@ -186,4 +263,9 @@ async function fetchLatestQuotes(symbols) {
   return updates;
 }
 
-module.exports = { fetchIntraday, fetchLatestQuotes, searchStocks };
+module.exports = {
+  fetchExtendedUS,
+  fetchIntraday,
+  fetchLatestQuotes,
+  searchStocks,
+};

@@ -171,7 +171,7 @@ function parseEastmoneyLatest(response, symbols) {
   });
 }
 
-function isMarketOpen(market, date = new Date()) {
+function marketSession(market, date = new Date()) {
   const timeZone = market === "unitedStates"
     ? "America/New_York"
     : market === "hongKong" ? "Asia/Hong_Kong" : "Asia/Shanghai";
@@ -184,15 +184,24 @@ function isMarketOpen(market, date = new Date()) {
       hourCycle: "h23",
     }).formatToParts(date).map((part) => [part.type, part.value]),
   );
-  if (!["Mon", "Tue", "Wed", "Thu", "Fri"].includes(parts.weekday)) return false;
+  if (!["Mon", "Tue", "Wed", "Thu", "Fri"].includes(parts.weekday)) return "closed";
   const minutes = Number(parts.hour) * 60 + Number(parts.minute);
   if (market === "aShare") {
-    return (minutes >= 570 && minutes <= 690) || (minutes >= 780 && minutes <= 900);
+    return (minutes >= 570 && minutes <= 690) || (minutes >= 780 && minutes <= 900)
+      ? "regular" : "closed";
   }
   if (market === "hongKong") {
-    return (minutes >= 570 && minutes <= 720) || (minutes >= 780 && minutes <= 960);
+    return (minutes >= 570 && minutes <= 720) || (minutes >= 780 && minutes <= 960)
+      ? "regular" : "closed";
   }
-  return minutes >= 570 && minutes <= 960;
+  if (minutes >= 240 && minutes < 570) return "preMarket";
+  if (minutes >= 570 && minutes < 960) return "regular";
+  if (minutes >= 960 && minutes < 1200) return "afterHours";
+  return "closed";
+}
+
+function isMarketOpen(market, date = new Date()) {
+  return marketSession(market, date) !== "closed";
 }
 
 function failureBackoffSeconds(baseInterval, failureCount) {
@@ -238,6 +247,99 @@ function parseTrend(raw) {
 
 function hasDrawableIntradayData(points) {
   return Array.isArray(points) && points.length >= 2;
+}
+
+function parsePrice(value) {
+  const normalized = String(value ?? "").replace(/[$,\s]/g, "");
+  const number = Number(normalized);
+  return number > 0 ? number : null;
+}
+
+function zonedWallTime(timestamp, timeZone) {
+  const wallClock = new Date(timestamp);
+  const desired = Date.UTC(
+    wallClock.getUTCFullYear(),
+    wallClock.getUTCMonth(),
+    wallClock.getUTCDate(),
+    wallClock.getUTCHours(),
+    wallClock.getUTCMinutes(),
+    wallClock.getUTCSeconds(),
+  );
+  let guess = desired;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date(guess)).map((part) => [part.type, part.value]),
+    );
+    const represented = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const adjustment = desired - represented;
+    guess += adjustment;
+    if (!adjustment) break;
+  }
+  return new Date(guess);
+}
+
+function parseNasdaqChart(response, symbol) {
+  const data = response?.data;
+  const points = (data?.chart || []).flatMap((item) => {
+    const timestamp = Number(item.x);
+    const price = Number(item.y);
+    if (!(timestamp > 0) || !(price > 0)) return [];
+    return [{ time: zonedWallTime(timestamp, "America/New_York").toISOString(), price }];
+  });
+  const previousClose = parsePrice(data?.previousClose);
+  const lastPrice = points.at(-1)?.price || parsePrice(data?.lastSalePrice);
+  if (!symbol || !hasDrawableIntradayData(points) || !previousClose || !lastPrice) return null;
+  const sourceTimestamp = points.at(-1).time;
+  return {
+    symbol,
+    points,
+    dayOpen: points[0].price,
+    previousClose,
+    lastPrice,
+    changePercent: changePercent(lastPrice, previousClose),
+    updatedAt: sourceTimestamp,
+    sourceTimestamp,
+    isStale: false,
+    source: "nasdaq",
+  };
+}
+
+function parseCnbcExtended(response, symbol) {
+  const data = response?.FormattedQuoteResult?.FormattedQuote?.[0];
+  const extended = data?.ExtendedMktQuote;
+  const previousClose = parsePrice(data?.previous_day_closing);
+  const lastPrice = parsePrice(extended?.last);
+  const timestamp = Date.parse(extended?.last_time);
+  if (!symbol || !previousClose || !lastPrice || !(timestamp > 0)) return null;
+  const sourceTimestamp = new Date(timestamp).toISOString();
+  return {
+    symbol,
+    points: [{ time: sourceTimestamp, price: lastPrice }],
+    dayOpen: lastPrice,
+    previousClose,
+    lastPrice,
+    changePercent: changePercent(lastPrice, previousClose),
+    updatedAt: sourceTimestamp,
+    sourceTimestamp,
+    isStale: false,
+    source: "cnbc",
+  };
 }
 
 function evaluateThreshold(previousState, percent, risingThreshold, fallingThreshold, hysteresis = 0.15) {
@@ -444,11 +546,14 @@ module.exports = {
   instrumentTypeForSearchItem,
   instrumentTypeForSymbol,
   isMarketOpen,
+  marketSession,
   isVersionNewer,
   overlayDragPosition,
   overlayGeometry,
   positionProfitCny,
+  parseCnbcExtended,
   parseEastmoneyLatest,
+  parseNasdaqChart,
   parseTencentMinute,
   parseTencentRealtime,
   parseTrend,
