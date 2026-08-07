@@ -51,10 +51,8 @@ function applyDisplayScale() {
   document.body.style.transform = `scale(${scale})`;
 }
 
-function stockColor(market, change) {
-  const rising = market === "unitedStates" ? "#55d69e" : "#ff6673";
-  const falling = market === "unitedStates" ? "#ff6673" : "#55d69e";
-  return change >= 0 ? rising : falling;
+function stockColor(_market, change) {
+  return change >= 0 ? "#ff6673" : "#55d69e";
 }
 
 function escapeHTML(value) {

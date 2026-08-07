@@ -3,7 +3,7 @@
 const MARKETS = Object.freeze({
   aShare: { label: "A股", rising: "#ff6673", falling: "#55d69e" },
   hongKong: { label: "港股", rising: "#ff6673", falling: "#55d69e" },
-  unitedStates: { label: "美股", rising: "#55d69e", falling: "#ff6673" },
+  unitedStates: { label: "美股", rising: "#ff6673", falling: "#55d69e" },
 });
 
 const INITIAL_SYMBOLS = Object.freeze([

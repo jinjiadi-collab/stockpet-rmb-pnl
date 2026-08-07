@@ -96,11 +96,11 @@ test("overlay dragging uses the original window position without accumulating mo
   assert.deepEqual(overlayDragPosition(windowStart, pointerStart, pointerCurrent), expected);
 });
 
-test("A/H and US markets use opposite rise/fall colors", () => {
+test("all markets use the A-share red-rise and green-fall convention", () => {
   assert.equal(colorFor("aShare", 1), "#ff6673");
   assert.equal(colorFor("hongKong", -1), "#55d69e");
-  assert.equal(colorFor("unitedStates", 1), "#55d69e");
-  assert.equal(colorFor("unitedStates", -1), "#ff6673");
+  assert.equal(colorFor("unitedStates", 1), "#ff6673");
+  assert.equal(colorFor("unitedStates", -1), "#55d69e");
 });
 
 test("Tencent symbols are mapped for A/H/US markets", () => {

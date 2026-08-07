@@ -1,9 +1,9 @@
 {
-  "version": "0.2.3",
-  "assetName": "StockPet-PnL-Windows-x64-v0.2.3.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.3/StockPet-PnL-Windows-x64-v0.2.3.zip",
-  "digest": "sha256:b162798f4a220c40546327eb266acbbb95b30c6beb5311e49b3b50ada386ef09",
-  "size": 110167761,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.3",
-  "notes": "更新下载支持断点续传和自动重试，并在启动时清理超过 24 小时的旧更新临时目录。"
+  "version": "0.2.4",
+  "assetName": "StockPet-PnL-Windows-x64-v0.2.4.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.4/StockPet-PnL-Windows-x64-v0.2.4.zip",
+  "digest": "sha256:b09ccec880948451a308f31d1613f9f844f33b19bd1e4f2a92a2199745dc97b9",
+  "size": 110168014,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.4",
+  "notes": "统一 A 股、港股和美股的涨跌配色，全部采用红涨绿跌显示习惯。"
 }
