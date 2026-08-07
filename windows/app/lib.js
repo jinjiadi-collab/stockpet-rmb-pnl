@@ -417,6 +417,20 @@ function releaseParts(attachments, assetName) {
     .map(({ url, size }) => ({ url, size }));
 }
 
+function isStaleUpdateDirectory(name, modifiedAt, now = Date.now(), maxAge = 24 * 60 * 60 * 1000) {
+  return /^stockpet-update-/i.test(String(name || ""))
+    && Number.isFinite(Number(modifiedAt))
+    && Number(now) - Number(modifiedAt) > Number(maxAge);
+}
+
+function updateDownloadWriteMode(existingSize, statusCode) {
+  return Number(existingSize) > 0 && Number(statusCode) === 206 ? "append" : "overwrite";
+}
+
+function updateRetryDelayMs(retryNumber) {
+  return Math.min(8000, 1200 * (2 ** Math.max(0, Number(retryNumber) - 1)));
+}
+
 module.exports = {
   INITIAL_SYMBOLS,
   MARKETS,
@@ -440,6 +454,9 @@ module.exports = {
   parseTrend,
   releaseDigest,
   releaseParts,
+  isStaleUpdateDirectory,
+  updateDownloadWriteMode,
+  updateRetryDelayMs,
   normalizeClockTime,
   minutesFromClock,
   shouldScheduleShow,

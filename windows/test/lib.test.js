@@ -21,6 +21,9 @@ const {
   parseTrend,
   releaseDigest,
   releaseParts,
+  isStaleUpdateDirectory,
+  updateDownloadWriteMode,
+  updateRetryDelayMs,
   sanitizeState,
   shouldScheduleShow,
   tencentCode,
@@ -47,6 +50,22 @@ test("release parts prefer a complete file and otherwise sort numbered chunks", 
     { name: asset, browser_download_url: "complete", size: 30 },
     { name: `${asset}.part01`, browser_download_url: "one", size: 10 },
   ], asset), [{ url: "complete", size: 30 }]);
+});
+
+test("stale update directories are cleaned only after 24 hours", () => {
+  const now = Date.UTC(2026, 7, 7, 12);
+  assert.equal(isStaleUpdateDirectory("stockpet-update-v0.2.2", now - 25 * 60 * 60 * 1000, now), true);
+  assert.equal(isStaleUpdateDirectory("stockpet-update-v0.2.2", now - 23 * 60 * 60 * 1000, now), false);
+  assert.equal(isStaleUpdateDirectory("unrelated-folder", now - 48 * 60 * 60 * 1000, now), false);
+});
+
+test("update downloads append only when the server accepts the range", () => {
+  assert.equal(updateDownloadWriteMode(4096, 206), "append");
+  assert.equal(updateDownloadWriteMode(4096, 200), "overwrite");
+  assert.equal(updateDownloadWriteMode(0, 206), "overwrite");
+  assert.equal(updateRetryDelayMs(1), 1200);
+  assert.equal(updateRetryDelayMs(2), 2400);
+  assert.equal(updateRetryDelayMs(9), 8000);
 });
 
 test("overlay geometry scales the whole board linearly", () => {

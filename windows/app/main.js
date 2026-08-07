@@ -29,12 +29,16 @@ const {
   overlayGeometry,
   releaseDigest,
   releaseParts,
+  isStaleUpdateDirectory,
+  updateDownloadWriteMode,
+  updateRetryDelayMs,
   sanitizeState,
   shouldScheduleShow,
 } = require("./lib");
 const { fetchIntraday, fetchLatestQuotes, searchStocks } = require("./quote-service");
 
 const PORTABLE_DATA_DIRECTORY = "data";
+const UPDATE_DOWNLOAD_MAX_RETRIES = 3;
 
 let overlayWindow = null;
 let settingsWindow = null;
@@ -94,6 +98,29 @@ function loadData() {
   state = sanitizeState(readJSON(statePath(), {}));
   quoteCache = readJSON(quoteCachePath(), {});
   quotes = { ...quoteCache };
+}
+
+async function cleanupStaleUpdateDirectories() {
+  const temporaryDirectory = app.getPath("temp");
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(temporaryDirectory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  await Promise.all(entries
+    .filter((entry) => entry.isDirectory() && /^stockpet-update-/i.test(entry.name))
+    .map(async (entry) => {
+      const directory = path.join(temporaryDirectory, entry.name);
+      try {
+        const stats = await fs.promises.stat(directory);
+        if (isStaleUpdateDirectory(entry.name, stats.mtimeMs)) {
+          await fs.promises.rm(directory, { recursive: true, force: true });
+        }
+      } catch {
+        // 临时目录可能正被另一个进程清理或占用，下次启动再尝试。
+      }
+    }));
 }
 
 function persistState() {
@@ -346,17 +373,61 @@ try {
 `;
 }
 
-async function downloadUpdateArchive(update, archivePath) {
-  const response = await net.fetch(update.assetUrl, {
-    cache: "no-store",
-    headers: { Accept: "application/octet-stream", "User-Agent": `StockPet/${app.getVersion()}` },
-  });
-  if (!response.ok) throw new Error("更新包下载失败，请稍后重试。");
-  const total = Number(response.headers.get("content-length")) || Number(update.size) || 0;
+async function updateArchiveState(archivePath) {
   const hash = createHash("sha256");
-  let received = 0;
+  let size = 0;
+  try {
+    const stream = fs.createReadStream(archivePath);
+    for await (const chunk of stream) {
+      hash.update(chunk);
+      size += chunk.length;
+    }
+  } catch (error) {
+    if (error?.code === "ENOENT") return { size: 0, digest: null };
+    throw error;
+  }
+  return { size, digest: `sha256:${hash.digest("hex")}` };
+}
+
+async function downloadUpdateAttempt(update, archivePath) {
+  const expectedSize = Number(update.size) || 0;
+  let existing = await updateArchiveState(archivePath);
+  if (expectedSize && existing.size > expectedSize) {
+    await fs.promises.rm(archivePath, { force: true });
+    existing = { size: 0, digest: null };
+  }
+  if (expectedSize && existing.size === expectedSize) {
+    if (existing.digest === update.digest) {
+      send("update-download-progress", { received: existing.size, total: expectedSize });
+      return;
+    }
+    await fs.promises.rm(archivePath, { force: true });
+    existing = { size: 0, digest: null };
+  }
+
+  const headers = {
+    Accept: "application/octet-stream",
+    "User-Agent": `StockPet/${app.getVersion()}`,
+  };
+  if (existing.size > 0) headers.Range = `bytes=${existing.size}-`;
+  const response = await net.fetch(update.assetUrl, { cache: "no-store", headers });
+  if (!response.ok) throw new Error(`更新包下载失败（HTTP ${response.status}）`);
+
+  const writeMode = updateDownloadWriteMode(existing.size, response.status);
+  if (writeMode === "append") {
+    const contentRange = String(response.headers.get("content-range") || "");
+    if (!contentRange.startsWith(`bytes ${existing.size}-`)) {
+      throw new Error("服务器返回的续传范围不正确");
+    }
+  }
+  let received = writeMode === "append" ? existing.size : 0;
+  const responseLength = Number(response.headers.get("content-length")) || 0;
+  const total = expectedSize || (writeMode === "append" ? received + responseLength : responseLength);
+  if (received > 0) {
+    send("update-download-progress", { received, total, resuming: true });
+  }
   let lastProgressAt = 0;
-  const file = await fs.promises.open(archivePath, "w");
+  const file = await fs.promises.open(archivePath, writeMode === "append" ? "a" : "w");
   try {
     const reader = response.body?.getReader?.();
     if (!reader) throw new Error("更新包数据流不可用，请稍后重试。");
@@ -364,7 +435,6 @@ async function downloadUpdateArchive(update, archivePath) {
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = Buffer.from(value);
-      hash.update(chunk);
       received += chunk.length;
       await file.write(chunk);
       const now = Date.now();
@@ -376,8 +446,37 @@ async function downloadUpdateArchive(update, archivePath) {
   } finally {
     await file.close();
   }
-  const receivedHash = `sha256:${hash.digest("hex")}`;
-  if (receivedHash !== update.digest) throw new Error("更新包校验失败，已停止安装。");
+  const completed = await updateArchiveState(archivePath);
+  if (expectedSize && completed.size !== expectedSize) {
+    throw new Error(`连接提前关闭，已保留 ${completed.size} 字节等待续传`);
+  }
+  if (completed.digest !== update.digest) {
+    await fs.promises.rm(archivePath, { force: true });
+    throw new Error("更新包校验失败，将从头重新下载");
+  }
+}
+
+async function downloadUpdateArchive(update, archivePath) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= UPDATE_DOWNLOAD_MAX_RETRIES; attempt += 1) {
+    try {
+      await downloadUpdateAttempt(update, archivePath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= UPDATE_DOWNLOAD_MAX_RETRIES) break;
+      const partial = await updateArchiveState(archivePath).catch(() => ({ size: 0 }));
+      send("update-download-progress", {
+        received: partial.size,
+        total: Number(update.size) || 0,
+        retrying: true,
+        retryAttempt: attempt + 1,
+        retryMax: UPDATE_DOWNLOAD_MAX_RETRIES,
+      });
+      await new Promise((resolve) => setTimeout(resolve, updateRetryDelayMs(attempt + 1)));
+    }
+  }
+  throw new Error(`更新包下载失败，已自动重试 ${UPDATE_DOWNLOAD_MAX_RETRIES} 次：${lastError?.message || "网络连接中断"}`);
 }
 
 async function installAvailableUpdate() {
@@ -392,7 +491,8 @@ async function installAvailableUpdate() {
   } catch {
     throw new Error("当前安装目录没有写入权限，请将软件解压到桌面或其他可写位置后再更新。");
   }
-  const temporaryRoot = path.join(app.getPath("temp"), `stockpet-update-${Date.now()}`);
+  const versionKey = String(availableUpdate.version).replace(/[^0-9A-Za-z._-]/g, "_");
+  const temporaryRoot = path.join(app.getPath("temp"), `stockpet-update-v${versionKey}`);
   const archivePath = path.join(temporaryRoot, availableUpdate.assetName);
   const stagingPath = path.join(temporaryRoot, "unpacked");
   const scriptPath = path.join(temporaryRoot, "finish-update.ps1");
@@ -413,7 +513,8 @@ async function installAvailableUpdate() {
     await fs.promises.writeFile(scriptPath, Buffer.from(scriptWithBom, "utf8"));
     await launchUpdater(scriptPath);
   } catch (error) {
-    await fs.promises.rm(temporaryRoot, { recursive: true, force: true }).catch(() => {});
+    await fs.promises.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
+    await fs.promises.rm(scriptPath, { force: true }).catch(() => {});
     throw error;
   }
   setTimeout(() => app.quit(), 250);
@@ -1053,8 +1154,9 @@ if (!gotLock) {
     overlayWindow?.showInactive();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     app.setAppUserModelId("com.bingge.StockPet");
+    await cleanupStaleUpdateDirectories();
     loadData();
     registerIPC();
     createOverlayWindow();

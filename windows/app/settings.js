@@ -524,9 +524,25 @@ window.stockPet.on("quotes-updated", (nextQuotes) => {
   renderPriceAlerts();
 });
 window.stockPet.on("update-available", showAvailableUpdate);
-window.stockPet.on("update-download-progress", ({ received, total }) => {
+window.stockPet.on("update-download-progress", ({
+  received,
+  total,
+  retrying,
+  retryAttempt,
+  retryMax,
+  resuming,
+}) => {
   const percent = total > 0 ? Math.min(100, (received / total) * 100) : 0;
-  setUpdateProgress(received, total);
+  const progressLabel = retrying
+    ? `网络中断，正在自动重试 ${retryAttempt}/${retryMax}…`
+    : resuming
+      ? `正在从 ${formatUpdateSize(received)} 继续下载…`
+      : null;
+  setUpdateProgress(received, total, progressLabel);
+  if (retrying) {
+    $("#update-message").textContent = `下载连接中断，正在自动重试 ${retryAttempt}/${retryMax}，已下载部分会保留。`;
+    return;
+  }
   $("#update-message").textContent = total > 0
     ? `正在下载更新：${formatUpdateSize(received)} / ${formatUpdateSize(total)}（${Math.round(percent)}%）`
     : `正在下载更新：${formatUpdateSize(received)}`;
