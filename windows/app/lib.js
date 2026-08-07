@@ -329,6 +329,7 @@ function sanitizeState(candidate = {}) {
   return {
     symbols,
     positions,
+    pnlEnabled: candidate.pnlEnabled !== false,
     lineOpacity: number(candidate.lineOpacity, 0.92, 0.1, 1),
     chartWidth: number(candidate.chartWidth, 430, 120, 720),
     labelOpacity: number(candidate.labelOpacity, 0.92, 0.1, 1),

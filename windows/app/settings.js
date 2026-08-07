@@ -71,13 +71,14 @@ function positionProfit(symbol, quote, position) {
 
 function renderPositions() {
   if (!state) return;
+  const pnlEnabled = state.pnlEnabled;
   const profits = [];
   const list = $("#positions-list");
   list.innerHTML = state.symbols.length
     ? state.symbols.map((symbol) => {
         const position = state.positions[symbol.quoteID] || {};
         const quote = quotes[symbol.quoteID];
-        const profit = positionProfit(symbol, quote, position);
+        const profit = pnlEnabled ? positionProfit(symbol, quote, position) : null;
         if (Number.isFinite(profit)) profits.push(profit);
         const defaultRate = symbol.market === "aShare" ? 1 : "";
         const currentValue = Number(quote?.lastPrice) > 0
@@ -90,7 +91,7 @@ function renderPositions() {
                 <div class="stock-name">${escapeHTML(symbol.name)}</div>
                 <div class="stock-meta">${escapeHTML(symbol.code)} · ${marketLabels[symbol.market]} · ${currentValue}</div>
               </div>
-              <strong class="position-profit ${profit > 0 ? "positive" : profit < 0 ? "negative" : ""}">${formatCny(profit)}</strong>
+              <strong class="position-profit ${profit > 0 ? "positive" : profit < 0 ? "negative" : ""}">${pnlEnabled ? formatCny(profit) : "已隐藏"}</strong>
             </div>
             <div class="position-fields">
               <label>成本价
@@ -108,11 +109,18 @@ function renderPositions() {
       }).join("")
     : '<div class="empty-list">请先在“桌面股票”中添加股票</div>';
   const total = profits.reduce((sum, value) => sum + value, 0);
-  $("#portfolio-profit").textContent = profits.length ? formatCny(total) : "—";
-  $("#portfolio-profit").className = total > 0 ? "positive" : total < 0 ? "negative" : "";
-  $("#portfolio-profit-note").textContent = profits.length
-    ? `已按 ${profits.length} 只已配置持仓计算`
-    : "请为持仓填写成本价、数量和汇率";
+  $("#portfolio-profit").textContent = pnlEnabled
+    ? (profits.length ? formatCny(total) : "—")
+    : "已关闭";
+  $("#portfolio-profit").className = pnlEnabled
+    ? (total > 0 ? "positive" : total < 0 ? "negative" : "")
+    : "muted-profit";
+  $("#portfolio-profit-note").textContent = pnlEnabled
+    ? (profits.length
+      ? `已按 ${profits.length} 只已配置持仓计算`
+      : "请为持仓填写成本价、数量和汇率")
+    : "桌宠和设置页均不显示盈亏金额，持仓数据仍保留";
+  $("#page-positions").classList.toggle("pnl-disabled", !pnlEnabled);
 }
 
 function renderSearchResults() {
@@ -188,6 +196,7 @@ function syncControls() {
     "alwaysOnTop",
     "clickThrough",
     "showStockMeta",
+    "pnlEnabled",
     "bullSoundEnabled",
     "bearSoundEnabled",
     "alertsEnabled",
@@ -327,6 +336,7 @@ for (const id of [
   "alwaysOnTop",
   "clickThrough",
   "showStockMeta",
+  "pnlEnabled",
   "bullSoundEnabled",
   "bearSoundEnabled",
   "alertsEnabled",

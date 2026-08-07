@@ -410,6 +410,19 @@ select:focus {
   margin-bottom: 18px;
 }
 
+.positions-toggle-card {
+  margin-bottom: 18px;
+}
+
+.pnl-disabled .portfolio-summary,
+.pnl-disabled .position-profit {
+  color: #8b929e;
+}
+
+.muted-profit {
+  color: #8b929e;
+}
+
 .portfolio-summary span,
 .portfolio-summary small {
   color: #7e8693;

@@ -1,9 +1,9 @@
 {
-  "version": "0.2.1",
-  "assetName": "StockPet-PnL-Windows-x64-v0.2.1.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.1/StockPet-PnL-Windows-x64-v0.2.1.zip",
-  "digest": "sha256:935a397117176267e94efce7145163975b347e86903d92e22ad98e50d9e13ce2",
-  "size": 110166000,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.1",
-  "notes": "新增独立的涨跌幅阈值字体闪烁，隐藏桌宠滚动条，并优化数据与刷新页面的自适应布局。"
+  "version": "0.2.2",
+  "assetName": "StockPet-PnL-Windows-x64-v0.2.2.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.2/StockPet-PnL-Windows-x64-v0.2.2.zip",
+  "digest": "sha256:5266ea49f36b4106c17748cb04ba6448da531aa7f4a246600e14989b0d41f303",
+  "size": 110166285,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.2",
+  "notes": "新增持仓盈亏显示开关，可隐藏全部盈亏金额并保留原有持仓数据。"
 }

@@ -30,7 +30,7 @@ function applyDisplayScale() {
   const scale = Math.min(1.6, Math.max(0.65, Number(state.displayScale) || 1));
   const visibleRows = Math.max(1, Math.min(state.symbols.length, 8));
   const baseWidth = OVERLAY_NON_CHART_WIDTH + state.chartWidth;
-  const showPnlSummary = Object.values(state.positions || {}).some((position) => (
+  const showPnlSummary = state.pnlEnabled && Object.values(state.positions || {}).some((position) => (
     Number(position.costPrice) > 0
     && Number(position.quantity) > 0
     && Number(position.exchangeRate) > 0
@@ -146,9 +146,11 @@ function render() {
   boardElement.style.background = `rgba(19, 22, 30, ${state.backgroundOpacity})`;
   alertElement.style.opacity = state.alertOpacity;
   emptyElement.hidden = state.symbols.length > 0;
-  const profits = state.symbols
-    .map((symbol) => positionProfit(symbol, quotes[symbol.quoteID]))
-    .filter(Number.isFinite);
+  const profits = state.pnlEnabled
+    ? state.symbols
+      .map((symbol) => positionProfit(symbol, quotes[symbol.quoteID]))
+      .filter(Number.isFinite)
+    : [];
   const totalProfit = profits.reduce((sum, value) => sum + value, 0);
   const pnlSummary = profits.length
     ? `<div class="pnl-summary">持仓总盈亏 <strong class="${totalProfit > 0 ? "positive" : totalProfit < 0 ? "negative" : ""}">${formatCny(totalProfit)}</strong></div>`
@@ -165,7 +167,7 @@ function render() {
       : `${sign}${change.toFixed(2)}%`;
     const path = linePath(quote?.points, quote?.previousClose);
     const baseline = baselineY(quote);
-    const profit = positionProfit(symbol, quote);
+    const profit = state.pnlEnabled ? positionProfit(symbol, quote) : null;
     const highlightDirection = thresholdHighlightDirection(quote);
     const highlightColor = highlightDirection
       ? stockColor(symbol.market, highlightDirection === "rising" ? 1 : -1)

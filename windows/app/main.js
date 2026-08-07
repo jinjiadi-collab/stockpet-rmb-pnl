@@ -542,7 +542,7 @@ function updateOverlayGeometry() {
     state.displayScale,
     maximumHeight,
     state.chartWidth,
-    Object.values(state.positions || {}).some((position) => (
+    state.pnlEnabled && Object.values(state.positions || {}).some((position) => (
       Number(position.costPrice) > 0
       && Number(position.quantity) > 0
       && Number(position.exchangeRate) > 0

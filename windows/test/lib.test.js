@@ -231,6 +231,11 @@ test("font flashing is independent while preserving the previous alert preferenc
   assert.equal(sanitizeState({ alertsEnabled: true, flashingEnabled: false }).flashingEnabled, false);
 });
 
+test("position P&L display is enabled by default and can be disabled", () => {
+  assert.equal(sanitizeState().pnlEnabled, true);
+  assert.equal(sanitizeState({ pnlEnabled: false }).pnlEnabled, false);
+});
+
 test("change display defaults to percentage and accepts price amount", () => {
   assert.equal(sanitizeState().changeDisplayMode, "percentage");
   assert.equal(sanitizeState({ changeDisplayMode: "amount" }).changeDisplayMode, "amount");
