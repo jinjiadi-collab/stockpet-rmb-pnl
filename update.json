@@ -1,9 +1,9 @@
 {
-  "version": "0.2.4",
-  "assetName": "StockPet-PnL-Windows-x64-v0.2.4.zip",
-  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.4/StockPet-PnL-Windows-x64-v0.2.4.zip",
-  "digest": "sha256:b09ccec880948451a308f31d1613f9f844f33b19bd1e4f2a92a2199745dc97b9",
-  "size": 110168014,
-  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.4",
-  "notes": "统一 A 股、港股和美股的涨跌配色，全部采用红涨绿跌显示习惯。"
+  "version": "0.2.5",
+  "assetName": "StockPet-PnL-Windows-x64-v0.2.5.zip",
+  "assetUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/download/v0.2.5/StockPet-PnL-Windows-x64-v0.2.5.zip",
+  "digest": "sha256:e97bd381d22b9e2a539a9c6e8b4a2ef07cf4fcd5b842bd67540d0df5eff99ea3",
+  "size": 110170034,
+  "releaseUrl": "https://github.com/jinjiadi-collab/stockpet-rmb-pnl/releases/tag/v0.2.5",
+  "notes": "增加美股盘前/盘后行情：Nasdaq 为主数据源，CNBC 自动备用，均免费且无需账号或 API Key；常规交易时段继续使用腾讯/东方财富；界面显示盘前/盘后，涨跌幅和盈亏以上一常规收盘价计算。"
 }
